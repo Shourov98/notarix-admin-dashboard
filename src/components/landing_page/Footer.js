@@ -28,8 +28,8 @@ export default function Footer() {
           <div>
             <h3 className="font-bold text-xs uppercase tracking-wider text-zinc-900 mb-4">Resources</h3>
             <ul className="space-y-3 text-sm">
-              <li><a href="#" className="hover:text-zinc-900 transition-colors">Legal Validity</a></li>
-              <li><a href="#" className="hover:text-zinc-900 transition-colors">Security</a></li>
+              <li><a href="/legal-validity" className="hover:text-zinc-900 transition-colors">Legal Validity</a></li>
+              <li><a href="/security" className="hover:text-zinc-900 transition-colors">Security</a></li>
               <li><a href="#" className="hover:text-zinc-900 transition-colors">Contact Support</a></li>
             </ul>
           </div>
@@ -42,7 +42,7 @@ export default function Footer() {
               <li><a href="/trust" className="hover:text-zinc-900 transition-colors">Trust Center</a></li>
               <li><a href="/contact" className="hover:text-zinc-900 transition-colors">Contact</a></li>
               <li><a href="#" className="hover:text-zinc-900 transition-colors">Privacy Policy</a></li>
-              <li><a href="#" className="hover:text-zinc-900 transition-colors">Terms of Service</a></li>
+              <li><a href="/terms-of-use" className="hover:text-zinc-900 transition-colors">Terms of Service</a></li>
             </ul>
           </div>
 
