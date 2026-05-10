@@ -3,7 +3,7 @@ import Footer from "@/components/landing_page/Footer";
 
 export default function LandingLayout({ children }) {
   return (
-    <div className="min-h-screen flex flex-col bg-white text-black overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-white text-black">
       <Navbar />
       <div className="flex-1">
         {children}
