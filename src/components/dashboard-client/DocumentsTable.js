@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Calendar
 } from "lucide-react";
+import Link from "next/link";
 
 const documents = [
   {
@@ -140,12 +141,12 @@ export default function DocumentsTable() {
             {documents.map((doc, i) => (
               <tr key={i} className="hover:bg-zinc-50/50 transition-colors group">
                 <td className="px-6 py-5">
-                  <div className="flex items-center gap-3">
+                  <Link href="/document/123" className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${doc.iconBg}`}>
                       <doc.icon className={`w-5 h-5 ${doc.iconColor}`} />
                     </div>
                     <span className="text-sm font-bold text-zinc-900 group-hover:text-[#1a4fdb] transition-colors cursor-pointer">{doc.name}</span>
-                  </div>
+                  </Link>
                 </td>
                 <td className="px-6 py-5">
                   <span className="text-sm font-medium text-zinc-500">{doc.orderId}</span>
@@ -166,9 +167,11 @@ export default function DocumentsTable() {
                 </td>
                 <td className="px-6 py-5">
                   <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
-                    <button className="p-2 text-zinc-400 hover:text-[#1a4fdb] hover:bg-blue-50 rounded-lg transition-all">
-                      <Eye className="w-4 h-4" />
-                    </button>
+                    <Link href="/document/123">
+                      <button className="p-2 text-zinc-400 hover:text-[#1a4fdb] hover:bg-blue-50 rounded-lg transition-all">
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </Link>
                     <button className="p-2 text-zinc-400 hover:text-[#1a4fdb] hover:bg-blue-50 rounded-lg transition-all">
                       <Download className="w-4 h-4" />
                     </button>
