@@ -31,12 +31,12 @@ export default function Sidebar() {
 
   return (
     <aside 
-      className={`bg-white border-r border-zinc-200 h-screen sticky top-0 transition-all duration-300 flex flex-col ${
+      className={`bg-white border-r border-zinc-200 transition-all duration-300 flex flex-col sticky top-0 h-screen shrink-0 z-50 ${
         isCollapsed ? "w-20" : "w-64"
       }`}
     >
       {/* Logo Area */}
-      <div className="p-6 flex items-center gap-3 h-20 border-b border-zinc-50">
+      <div className="p-6 flex items-center gap-3 h-20 border-b border-zinc-50 bg-white">
         <div className="w-8 h-8 bg-[#1a4fdb] rounded flex items-center justify-center flex-shrink-0">
           <span className="text-white font-bold text-xl italic">N</span>
         </div>
@@ -72,7 +72,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Bottom Actions */}
-      <div className="p-3 border-t border-zinc-100 space-y-1">
+      <div className="p-3 border-t border-zinc-100 space-y-1 bg-white">
         <button className="w-full flex items-center gap-4 px-3 py-3 rounded-xl text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 transition-colors group relative">
           <HelpCircle className="w-5 h-5 flex-shrink-0 group-hover:text-[#1a4fdb]" />
           {!isCollapsed && <span className="font-medium text-sm">Help Center</span>}
@@ -96,7 +96,8 @@ export default function Sidebar() {
       {/* Collapse Toggle */}
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute -right-3 top-24 bg-white border border-zinc-200 rounded-full p-1 text-zinc-400 hover:text-zinc-900 hover:shadow-md transition-all"
+        className="fixed top-24 transform bg-white border border-zinc-200 rounded-full p-1 text-zinc-400 hover:text-zinc-900 hover:shadow-md transition-all z-20 shadow-sm"
+        style={{ left: isCollapsed ? '72px' : '248px' }}
       >
         {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>
