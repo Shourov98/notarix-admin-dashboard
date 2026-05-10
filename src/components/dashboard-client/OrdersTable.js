@@ -9,6 +9,7 @@ import {
   Download,
   RotateCcw
 } from "lucide-react";
+import Link from "next/link";
 
 const orders = [
   {
@@ -140,7 +141,9 @@ export default function OrdersTable() {
             {orders.map((order, i) => (
               <tr key={i} className="hover:bg-zinc-50/50 transition-colors group">
                 <td className="px-6 py-5">
-                  <span className="text-sm font-bold text-[#1a4fdb] hover:underline cursor-pointer">{order.id}</span>
+                  <Link href={`/dashboard-client/orders/${order.id.replace('#', '')}`}>
+                    <span className="text-sm font-bold text-[#1a4fdb] hover:underline cursor-pointer">{order.id}</span>
+                  </Link>
                 </td>
                 <td className="px-6 py-5">
                   <span className="text-sm font-bold text-zinc-700">{order.signerName}</span>
