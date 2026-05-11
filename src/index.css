@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-brand-primary: #2048e6;
+  --color-brand-primary-hover: #1736c9;
+  --color-brand-primary-soft: #eef3ff;
+  --color-dashboard-bg: #f8f7ff;
+  --color-panel: #ffffff;
+  --color-border: #c7cce1;
+  --color-muted: #64708a;
+  --color-ink: #171a24;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-[var(--color-dashboard-bg)] text-[var(--color-ink)] antialiased;
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    letter-spacing: 0;
+  }
+
+  button {
+    @apply rounded-lg transition-colors duration-150;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    @apply rounded-lg border border-[var(--color-border)] bg-white px-4 text-sm text-[var(--color-ink)] shadow-none transition-colors;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus {
+    @apply outline-none ring-2 ring-blue-200;
+    border-color: var(--color-brand-primary);
+  }
+}
+
+.notarix-scrollbar {
+  scrollbar-color: #c7cce1 transparent;
+  scrollbar-width: thin;
+}
+
+.notarix-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.notarix-scrollbar::-webkit-scrollbar-thumb {
+  background: #c7cce1;
+  border-radius: 999px;
+}
