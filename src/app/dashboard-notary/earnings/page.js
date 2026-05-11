@@ -13,9 +13,10 @@ import {
   Eye,
   CheckCircle
 } from "lucide-react";
+import { useState } from "react";
 
 export default function EarningsPage() {
-  const chartHeights = [40, 55, 45, 75, 60, 70, 90, 65, 85, 70, 80, 95];
+  const chartHeights = [35, 48, 40, 62, 55, 75, 88, 68, 82, 72, 80, 92];
   const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
   const earnings = [
@@ -28,6 +29,8 @@ export default function EarningsPage() {
     { id: "#PAY-882193", date: "Oct 12, 2023", method: "Chase Bank (**** 8821)", amount: "$1,240.00", status: "Success" },
     { id: "#PAY-881042", date: "Sept 28, 2023", method: "Chase Bank (**** 8821)", amount: "$980.50", status: "Success" },
   ];
+
+  const [activeTab, setActiveTab] = useState("Yearly");
 
   return (
     <div className="space-y-8">
@@ -66,33 +69,50 @@ export default function EarningsPage() {
       {/* Middle Section: Chart & Payout */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Revenue Performance Chart */}
-        <div className="xl:col-span-2 bg-white border border-zinc-100 rounded-[32px] p-8 shadow-sm flex flex-col h-[400px]">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="font-bold text-zinc-900">Revenue Performance</h3>
-            <div className="flex items-center bg-zinc-50 border border-zinc-200 rounded-lg p-1">
-              <button className="px-4 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors rounded-md">Weekly</button>
-              <button className="px-4 py-1.5 text-xs font-bold text-zinc-500 hover:text-zinc-900 transition-colors rounded-md">Monthly</button>
-              <button className="px-4 py-1.5 text-xs font-bold text-white bg-[#1a4fdb] shadow-sm rounded-md">Yearly</button>
+        <div className="xl:col-span-2 bg-white border border-zinc-100 rounded-[32px] p-8 shadow-sm flex flex-col h-[480px]">
+          <div className="flex items-center justify-between mb-12">
+            <h3 className="font-bold text-zinc-900 text-lg">Revenue Performance</h3>
+            <div className="flex items-center bg-zinc-50 border border-zinc-200 rounded-2xl p-1">
+              {["Weekly", "Monthly", "Yearly"].map((tab) => (
+                <button 
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-6 py-2 text-xs font-bold rounded-xl transition-all ${
+                    activeTab === tab 
+                      ? "bg-white text-[#1a4fdb] shadow-sm border border-zinc-100" 
+                      : "text-zinc-400 hover:text-zinc-600"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
           </div>
-          <div className="flex-1 flex items-end justify-between gap-2 md:gap-4 relative">
-            <div className="absolute inset-x-0 bottom-6 h-px bg-zinc-100 -z-10"></div>
-            <div className="absolute inset-x-0 top-1/2 h-px bg-zinc-100 -z-10 border-dashed"></div>
+          <div className="flex-1 flex items-end justify-between gap-3 relative pb-2">
+            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none pb-8">
+              {[1, 2, 3, 4, 5].map((line) => (
+                <div key={line} className="w-full h-px bg-zinc-50 border-dashed"></div>
+              ))}
+            </div>
+            
             {chartHeights.map((h, i) => (
-              <div key={i} className="w-full flex flex-col items-center gap-3">
+              <div key={i} className="flex-1 flex flex-col items-center gap-5 relative z-10">
                 <div 
-                  className="w-full bg-[#1a4fdb]/20 rounded-t-lg transition-all hover:bg-[#1a4fdb]/30 cursor-pointer" 
+                  className="w-full bg-[#1a4fdb]/10 rounded-t-2xl transition-all hover:bg-[#1a4fdb]/20 cursor-pointer relative group" 
                   style={{ height: `${h}%` }}
-                ></div>
-                <span className="text-[10px] font-bold text-zinc-400">{months[i]}</span>
+                >
+                   <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap shadow-xl pointer-events-none">
+                      ${(h * 120).toLocaleString()}
+                   </div>
+                </div>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">{months[i]}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Withdrawal & Last Payout */}
-        <div className="space-y-6 h-[400px] flex flex-col">
-          {/* Withdrawal Card */}
+        <div className="space-y-6 h-[480px] flex flex-col">
           <div className="bg-[#1a4fdb] rounded-[32px] p-8 text-white shadow-lg shadow-blue-100 flex-1 relative overflow-hidden flex flex-col justify-between">
             <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
             <div className="relative z-10">
@@ -117,7 +137,6 @@ export default function EarningsPage() {
             </button>
           </div>
 
-          {/* Last Payout */}
           <div className="bg-white border border-zinc-100 rounded-[24px] p-6 shadow-sm flex items-center justify-between shrink-0">
              <div>
                 <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
@@ -146,21 +165,15 @@ export default function EarningsPage() {
           />
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
-              All Statuses <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
-              Last 30 Days <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="relative group">
-            <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
-              All Services <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
+            All Statuses <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
+            Last 30 Days <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-xs font-bold text-zinc-600 hover:bg-zinc-50 transition-all">
+            All Services <ChevronDown className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
