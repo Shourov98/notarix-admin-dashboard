@@ -98,6 +98,7 @@ const UserFormPage = () => {
       state: "",
       expirationDate: "",
       travelRadius: "",
+      coverageAreas: "",
     },
     loginEmail: "",
     sendInviteEmail: true,
@@ -503,7 +504,14 @@ const UserFormPage = () => {
                     value={formState.commission.travelRadius}
                     onChange={(event) => updateSection("commission", "travelRadius", event.target.value)}
                   />
-                  <TextArea label="Coverage Areas (Counties or Cities)" required placeholder="Travis, Williamson, Hays..." className="md:col-span-2" />
+                  <TextArea
+                    label="Coverage Areas (Counties or Cities)"
+                    required
+                    placeholder="Travis, Williamson, Hays..."
+                    className="md:col-span-2"
+                    value={formState.commission.coverageAreas}
+                    onChange={(event) => updateSection("commission", "coverageAreas", event.target.value)}
+                  />
                 </div>
               </Card>
             </>
