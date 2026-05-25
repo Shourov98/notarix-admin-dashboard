@@ -64,13 +64,29 @@ export const createClient = createAsyncThunk(
   "adminConsole/createClient",
   async (clientPayload, { dispatch, rejectWithValue }) => {
     try {
+      const { documentUploads = [], ...createBody } = clientPayload;
       const payload = await apiRequest("/admin/users/client", {
         method: "POST",
-        body: clientPayload,
+        body: createBody,
       });
 
+      const createdClient = payload?.data || payload;
+      if (createdClient?.userId && documentUploads.length > 0) {
+        const formData = new FormData();
+        documentUploads.forEach((item) => {
+          formData.append("documents", item.file);
+          formData.append("documentTitles", item.title);
+        });
+
+        await apiRequest(`/admin/users/${createdClient.userId}/documents`, {
+          method: "POST",
+          body: formData,
+          contentType: null,
+        });
+      }
+
       await dispatch(fetchAdminConsole());
-      return payload?.data || payload;
+      return createdClient;
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to create client.");
     }

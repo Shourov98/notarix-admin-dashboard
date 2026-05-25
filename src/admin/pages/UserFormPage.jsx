@@ -51,6 +51,14 @@ const UserFormPage = () => {
   const { createClientStatus } = useAppSelector(selectAdminConsole);
   const isClient = type === "client";
   const documentList = useMemo(() => (isClient ? requiredClientDocs : requiredNotaryDocs), [isClient]);
+  const [clientDocuments, setClientDocuments] = useState(
+    requiredClientDocs.map(([title, description]) => ({
+      id: title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-"),
+      title,
+      description,
+      file: null,
+    }))
+  );
   const [formState, setFormState] = useState({
     organization: {
       companyName: "",
@@ -112,6 +120,19 @@ const UserFormPage = () => {
           address: formState.address,
           primaryContact: formState.primaryContact,
           secondaryContact: formState.secondaryContact,
+          requiredDocuments: clientDocuments.map((document) => ({
+            title: document.title,
+            status: document.file ? "Pending" : "Missing",
+            file: document.file?.name || null,
+            mimeType: document.file?.type,
+            size: document.file?.size,
+          })),
+          documentUploads: clientDocuments
+            .filter((document) => document.file)
+            .map((document) => ({
+              title: document.title,
+              file: document.file,
+            })),
           sendInviteEmail: formState.sendInviteEmail,
         })
       ).unwrap();
@@ -126,6 +147,19 @@ const UserFormPage = () => {
     } catch (error) {
       toast.error(error || "Unable to create client.");
     }
+  };
+
+  const handleClientDocumentChange = (title, file) => {
+    setClientDocuments((current) =>
+      current.map((document) =>
+        document.title === title
+          ? {
+              ...document,
+              file,
+            }
+          : document
+      )
+    );
   };
 
   return (
@@ -371,20 +405,62 @@ const UserFormPage = () => {
           <Card className="p-6">
             <SectionTitle icon={FileCheck2} title="Required Documents" />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {documentList.map(([title, description], index) => (
-                <div key={title} className="rounded-lg border border-[var(--color-border)] p-4">
-                  <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-bold">{title}</p>
-                      <p className="text-sm text-slate-600">{description}</p>
+              {documentList.map(([title, description], index) => {
+                const selectedDocument = isClient
+                  ? clientDocuments.find((document) => document.title === title)
+                  : null;
+
+                return (
+                  <div key={title} className="rounded-lg border border-[var(--color-border)] p-4">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold">{title}</p>
+                        <p className="text-sm text-slate-600">{description}</p>
+                      </div>
+                      <StatusBadge
+                        status={
+                          isClient
+                            ? selectedDocument?.file
+                              ? "Pending"
+                              : "Missing"
+                            : index === 1
+                              ? "Uploaded"
+                              : "Missing"
+                        }
+                      />
                     </div>
-                    <StatusBadge status={index === 1 && !isClient ? "Uploaded" : "Missing"} />
+                    {isClient ? (
+                      <label className="block">
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(event) =>
+                            handleClientDocumentChange(title, event.target.files?.[0] || null)
+                          }
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          icon={FolderUp}
+                          className="w-full text-[var(--color-brand-primary)]"
+                        >
+                          {selectedDocument?.file ? selectedDocument.file.name : "Upload"}
+                        </Button>
+                      </label>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={FolderUp}
+                        className="w-full text-[var(--color-brand-primary)]"
+                      >
+                        Upload
+                      </Button>
+                    )}
                   </div>
-                  <Button variant="secondary" size="sm" icon={FolderUp} className="w-full text-[var(--color-brand-primary)]">
-                    Upload
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         </div>
