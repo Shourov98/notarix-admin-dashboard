@@ -172,24 +172,32 @@ const ClientDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
   </div>
 );
 
-const NotaryOverview = () => (
+const NotaryOverview = ({ notary }) => (
   <div className="space-y-7">
     <Card className="p-7">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-5">
-          <Avatar name="Sarah Jenkins" size="lg" tone="bg-rose-100 text-rose-700" />
+          <Avatar
+            name={notary?.name || "Sarah Jenkins"}
+            size="lg"
+            tone={notary?.avatarTone || "bg-rose-100 text-rose-700"}
+          />
           <div>
-            <h2 className="text-2xl font-bold">Sarah Jenkins</h2>
+            <h2 className="text-2xl font-bold">{notary?.name || "Sarah Jenkins"}</h2>
             <div className="mt-2 flex flex-wrap gap-5 text-slate-600">
-              <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4" /> m.thorne@legalnotary.com</span>
-              <span className="inline-flex items-center gap-2"><Phone className="h-4 w-4" /> (555) 012-3456</span>
+              <span className="inline-flex items-center gap-2">
+                <Mail className="h-4 w-4" /> {notary?.email || "m.thorne@legalnotary.com"}
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <Phone className="h-4 w-4" /> {notary?.personalInfo?.phone || "(555) 012-3456"}
+              </span>
             </div>
           </div>
         </div>
         <div className="grid gap-6 text-right sm:grid-cols-4">
-          <InfoLine label="Status" value="Pending" />
-          <InfoLine label="Verification" value="In Review" />
-          <InfoLine label="Coverage Area" value="FL, GA" />
+          <InfoLine label="Status" value={notary?.status || "Pending"} />
+          <InfoLine label="Verification" value={notary?.verification || "In Review"} />
+          <InfoLine label="Coverage Area" value={notary?.commission?.coverageAreas || "FL, GA"} />
           <InfoLine label="Last Active" value="2 hours ago" />
         </div>
       </div>
@@ -232,11 +240,11 @@ const NotaryOverview = () => (
       <Card className="p-7">
         <SectionTitle icon={BriefcaseIcon} title="Notary Information" />
         {[
-          ["Commission Number", "NY-88291"],
-          ["Commission State", "New York"],
-          ["Expiration Date", "Oct 24, 2026"],
-          ["Travel Radius", "25 miles"],
-          ["Coverage Areas", "Manhattan, Brooklyn"],
+          ["Commission Number", notary?.commission?.number || "NY-88291"],
+          ["Commission State", notary?.commission?.state || "New York"],
+          ["Expiration Date", notary?.commission?.expirationDate || "Oct 24, 2026"],
+          ["Travel Radius", notary?.commission?.travelRadius || "25 miles"],
+          ["Coverage Areas", notary?.commission?.coverageAreas || "Manhattan, Brooklyn"],
         ].map(([label, value]) => (
           <div key={label} className="flex justify-between border-b border-slate-100 py-3 last:border-b-0">
             <span className="text-slate-600">{label}</span>
@@ -260,10 +268,10 @@ const NotaryOverview = () => (
       <Card className="p-7">
         <SectionTitle icon={MapPin} title="Address Information" />
         <div className="grid gap-5 sm:grid-cols-2">
-          <InfoLine label="Address Line 1" value="725 5th Ave" />
-          <InfoLine label="City" value="New York" />
-          <InfoLine label="State" value="NY" />
-          <InfoLine label="ZIP Code" value="10022" />
+          <InfoLine label="Address Line 1" value={notary?.address?.line1 || "725 5th Ave"} />
+          <InfoLine label="City" value={notary?.address?.city || "New York"} />
+          <InfoLine label="State" value={notary?.address?.state || "NY"} />
+          <InfoLine label="ZIP Code" value={notary?.address?.zip || "10022"} />
         </div>
       </Card>
       <Card className="p-7">
@@ -280,13 +288,13 @@ const NotaryOverview = () => (
 
 const BriefcaseIcon = (props) => <ShieldCheck {...props} />;
 
-const NotaryDocuments = () => (
+const NotaryDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
   <div>
     <div className="mb-8 grid gap-6 md:grid-cols-3">
       {[
-        ["Missing Documents", "02"],
-        ["Pending Review", "03"],
-        ["Verified Documents", "05"],
+        ["Missing Documents", String(documents.filter((doc) => doc.status === "Missing").length)],
+        ["Pending Review", String(documents.filter((doc) => doc.status === "Pending").length)],
+        ["Verified Documents", String(documents.filter((doc) => doc.status === "Verified").length)],
       ].map(([label, value]) => (
         <Card key={label} className="flex items-center justify-between p-7">
           <div>
@@ -300,7 +308,7 @@ const NotaryDocuments = () => (
       ))}
     </div>
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-      {notaryDocuments.map((doc, index) => (
+      {(documents.length ? documents : notaryDocuments).map((doc, index) => (
         <Card key={doc.title} className="flex min-h-[270px] flex-col overflow-hidden">
           <div className="border-b border-[var(--color-border)] p-5">
             <div className="flex items-start justify-between">
@@ -324,11 +332,25 @@ const NotaryDocuments = () => (
             )}
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               {doc.status === "Missing" ? (
-                <Button variant="secondary" className="sm:col-span-2">Request Resubmission</Button>
+                <Button variant="secondary" className="sm:col-span-2" disabled>
+                  Marked Missing
+                </Button>
               ) : (
                 <>
                   <Button variant="secondary">View</Button>
-                  <Button>{doc.status === "Verified" ? "Download" : "Approve"}</Button>
+                  <Button
+                    variant={doc.status === "Verified" ? "secondary" : "primary"}
+                    onClick={() =>
+                      doc.status === "Verified" ? null : onApprove?.(doc.id)
+                    }
+                  >
+                    {doc.status === "Verified" ? "Verified" : "Approve"}
+                  </Button>
+                  {doc.status === "Verified" ? null : (
+                    <Button variant="danger" className="sm:col-span-2" onClick={() => onMarkMissing?.(doc.id)}>
+                      Mark Missing
+                    </Button>
+                  )}
                 </>
               )}
             </div>
@@ -353,13 +375,15 @@ const UserProfilePage = ({ type = "client" }) => {
   const isDocuments = location.pathname.endsWith("/documents");
   const isNotary = type === "notary";
   const basePath = `/users/${type}/${id || (isNotary ? "sarah-jenkins" : "michael-chen")}`;
-  const client = !isNotary && activeUser?.id === id ? activeUser : null;
+  const currentUser = activeUser?.id === id ? activeUser : null;
+  const client = !isNotary ? currentUser : null;
+  const notary = isNotary ? currentUser : null;
 
   useEffect(() => {
-    if (!isNotary && id) {
+    if (id) {
       dispatch(fetchAdminUser(id));
     }
-  }, [dispatch, id, isNotary]);
+  }, [dispatch, id]);
 
   const handleApproveDocument = async (documentId) => {
     if (!id || !documentId) {
@@ -466,7 +490,15 @@ const UserProfilePage = ({ type = "client" }) => {
       </div>
 
       {isNotary ? (
-        isDocuments ? <NotaryDocuments /> : <NotaryOverview />
+        isDocuments ? (
+          <NotaryDocuments
+            documents={notary?.requiredDocuments || []}
+            onApprove={handleApproveDocument}
+            onMarkMissing={handleMarkMissing}
+          />
+        ) : (
+          <NotaryOverview notary={notary} />
+        )
       ) : isDocuments ? (
         <ClientDocuments
           documents={client?.requiredDocuments || []}
