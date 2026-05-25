@@ -25,7 +25,8 @@ import {
   PageHeader,
   StatusBadge,
 } from "../components/ui";
-import { dashboardStats, recentOrders } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const chartValues = [
   { label: "JAN", value: 42 },
@@ -144,6 +145,7 @@ const CustomTooltip = ({ active, payload }) => {
 
 const DashboardPage = () => {
   const [timeRange, setTimeRange] = useState("Yearly");
+  const { dashboardStats, recentOrders } = useAppSelector(selectAdminConsole);
 
   return (
     <div>

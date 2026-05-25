@@ -20,7 +20,8 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
-import { documents } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const PreviewPanel = ({ open, onClose, onReject }) => {
   if (!open) return null;
@@ -50,16 +51,17 @@ const PreviewPanel = ({ open, onClose, onReject }) => {
 const DocumentsPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const { documents, metrics } = useAppSelector(selectAdminConsole);
 
   return (
     <div>
       <PageHeader title="Documents" description="Manage and verify all uploaded documents in the system." />
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total" value="2,482" change="+12% from last month" icon={FileText} />
-        <MetricCard label="Pending" value="128" icon={FileText} />
-        <MetricCard label="Verified" value="2,140" icon={ShieldAlert} />
-        <MetricCard label="Rejected" value="214" icon={ShieldAlert} tone="danger" />
+        <MetricCard label="Total" value={String(metrics.totalDocuments || documents.length)} change="+12% from last month" icon={FileText} />
+        <MetricCard label="Pending" value={String(metrics.pendingDocuments || 0)} icon={FileText} />
+        <MetricCard label="Verified" value={String(metrics.verifiedDocuments || 0)} icon={ShieldAlert} />
+        <MetricCard label="Rejected" value={String(metrics.rejectedDocuments || 0)} icon={ShieldAlert} tone="danger" />
       </div>
 
       <Card className="mt-8 p-4">

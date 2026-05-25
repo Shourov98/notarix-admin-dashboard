@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { fetchAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppDispatch } from "../../store/hooks";
 import Sidebar from "./Sidebar";
 import Topbar from "./Topbar";
 
@@ -7,11 +9,16 @@ const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const contentRef = useRef(null);
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     setSidebarOpen(false);
     contentRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [location.pathname]);
+
+  useEffect(() => {
+    dispatch(fetchAdminConsole());
+  }, [dispatch]);
 
   return (
     <div className="min-h-screen bg-[var(--color-dashboard-bg)] lg:grid lg:grid-cols-[284px_minmax(0,1fr)]">

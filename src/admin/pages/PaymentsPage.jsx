@@ -19,7 +19,8 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
-import { payments } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const MarkPaidModal = ({ open, onClose }) => (
   <Modal
@@ -58,6 +59,7 @@ const MarkPaidModal = ({ open, onClose }) => (
 
 const PaymentsPage = () => {
   const [paidOpen, setPaidOpen] = useState(false);
+  const { payments } = useAppSelector(selectAdminConsole);
 
   return (
     <div>

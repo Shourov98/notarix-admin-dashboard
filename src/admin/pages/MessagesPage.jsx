@@ -1,8 +1,13 @@
 import { Download, Paperclip, Search, Send, Smile, Type } from "lucide-react";
 import { Avatar, Button, Card, StatusBadge } from "../components/ui";
-import { messages } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const MessagesPage = () => {
+  const { messages } = useAppSelector(selectAdminConsole);
+  const activeMessage = messages.find((item) => item.active) || messages[0];
+  const thread = activeMessage?.thread || [];
+
   return (
     <div className="grid min-h-[calc(100vh-10rem)] gap-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="border-r border-[var(--color-border)] bg-[#f8f7ff] p-6">
@@ -36,10 +41,10 @@ const MessagesPage = () => {
       <section className="flex min-w-0 flex-col">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-7 py-4">
           <div className="flex items-center gap-4">
-            <Avatar name="Sarah Jenkins" />
+            <Avatar name={activeMessage?.name || "Sarah Jenkins"} />
             <div>
-              <p className="font-bold">Sarah Jenkins</p>
-              <p className="text-sm text-emerald-600">Client · Online</p>
+              <p className="font-bold">{activeMessage?.name || "Sarah Jenkins"}</p>
+              <p className="text-sm text-emerald-600">{activeMessage?.statusLabel || "Client · Online"}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -48,35 +53,27 @@ const MessagesPage = () => {
           </div>
         </div>
         <div className="notarix-scrollbar flex-1 overflow-y-auto p-7">
-          <div className="mb-6 max-w-3xl">
-            <p className="mb-2 text-sm font-bold">Sarah Jenkins <span className="ml-3 font-normal text-slate-500">10:30 AM</span></p>
-            <p className="rounded-lg border border-[var(--color-border)] bg-[#e8e6f5] p-5 text-lg">
-              Hello! I'm having trouble with the document upload for the power of attorney form. Does it need to be a PDF or will a high-res JPG work?
-            </p>
-          </div>
-          <div className="mb-6 ml-auto max-w-3xl">
-            <p className="mb-2 text-right text-sm font-bold text-[var(--color-brand-primary)]">Admin Support <span className="mr-3 font-normal text-slate-500">10:32 AM</span></p>
-            <p className="rounded-lg bg-[var(--color-brand-primary)] p-5 text-lg text-white">
-              Hi Sarah! A high-res JPG is perfectly fine as long as all four corners of the document are visible and the text is legible.
-            </p>
-          </div>
-          <div className="mb-6 max-w-3xl">
-            <p className="mb-2 text-sm font-bold">Sarah Jenkins <span className="ml-3 font-normal text-slate-500">10:45 AM</span></p>
-            <div className="rounded-lg border border-[var(--color-border)] bg-[#e8e6f5] p-5 text-lg">
-              Great, thank you. I've uploaded the ID front here. Can you please verify if this quality is sufficient for the legal seal requirements?
-              <div className="mt-5 flex items-center justify-between rounded-lg bg-white p-4">
-                <div className="flex items-center gap-4">
-                  <span className="h-12 w-12 rounded bg-slate-200" />
-                  <div>
-                    <p className="font-bold">ID_Front_Scan.jpg</p>
-                    <p className="text-sm text-slate-500">2.4 MB · Image</p>
-                  </div>
-                </div>
-                <Download className="h-5 w-5 text-[var(--color-brand-primary)]" />
-              </div>
+          {thread.map((message) => (
+            <div
+              key={message.id}
+              className={`mb-6 ${message.authorType === "admin" ? "ml-auto max-w-3xl" : "max-w-3xl"}`}
+            >
+              <p className={`mb-2 text-sm font-bold ${message.authorType === "admin" ? "text-right text-[var(--color-brand-primary)]" : ""}`}>
+                {message.from}
+                <span className={`${message.authorType === "admin" ? "mr-3" : "ml-3"} font-normal text-slate-500`}>{message.time}</span>
+              </p>
+              <p
+                className={`rounded-lg p-5 text-lg ${
+                  message.authorType === "admin"
+                    ? "bg-[var(--color-brand-primary)] text-white"
+                    : "border border-[var(--color-border)] bg-[#e8e6f5]"
+                }`}
+              >
+                {message.text}
+              </p>
             </div>
-          </div>
-          <p className="text-sm italic text-slate-500">••• Sarah is typing...</p>
+          ))}
+          <p className="text-sm italic text-slate-500">••• {activeMessage?.name || "User"} is typing...</p>
         </div>
 
         <div className="border-t border-[var(--color-border)] p-7">

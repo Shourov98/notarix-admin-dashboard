@@ -1,8 +1,14 @@
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import { router } from './router/Routes'
-import { RouterProvider } from 'react-router-dom'
+import { createRoot } from "react-dom/client";
+import { Provider } from "react-redux";
+import { RouterProvider } from "react-router-dom";
+import { Toaster } from "sonner";
+import "./index.css";
+import { router } from "./router/Routes";
+import { store } from "./store";
 
 createRoot(document.getElementById('root')).render(
-  <RouterProvider router={router} />
-)
+  <Provider store={store}>
+    <RouterProvider router={router} />
+    <Toaster richColors position="top-right" />
+  </Provider>
+);

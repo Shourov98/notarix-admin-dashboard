@@ -9,9 +9,12 @@ import {
   Pagination,
   StatusBadge,
 } from "../components/ui";
-import { users } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const UserManagementPage = () => {
+  const { users, metrics } = useAppSelector(selectAdminConsole);
+
   return (
     <div>
       <PageHeader
@@ -27,10 +30,10 @@ const UserManagementPage = () => {
       />
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total Users" value="2,450" icon={Users} />
-        <MetricCard label="Active Clients" value="184" icon={UserRound} />
-        <MetricCard label="Total Notaries" value="2,140" icon={UserCheck} />
-        <MetricCard label="Pending Approvals" value="126" icon={UserX} tone="danger" />
+        <MetricCard label="Total Users" value={String(metrics.totalUsers || users.length)} icon={Users} />
+        <MetricCard label="Active Clients" value={String(metrics.activeClients || 0)} icon={UserRound} />
+        <MetricCard label="Total Notaries" value={String(metrics.totalNotaries || 0)} icon={UserCheck} />
+        <MetricCard label="Pending Approvals" value={String(metrics.pendingApprovals || 0)} icon={UserX} tone="danger" />
       </div>
 
       <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

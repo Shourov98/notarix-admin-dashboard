@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Building2,
   Camera,
@@ -23,6 +23,9 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
+import { createClient, selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { toast } from "sonner";
 
 const requiredClientDocs = [
   ["Service Agreement", "Signed contract for services."],
@@ -40,11 +43,90 @@ const requiredNotaryDocs = [
 ];
 
 const UserFormPage = () => {
+  const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get("type") === "notary" ? "notary" : "client";
   const [type, setType] = useState(initialType);
+  const { createClientStatus } = useAppSelector(selectAdminConsole);
   const isClient = type === "client";
   const documentList = useMemo(() => (isClient ? requiredClientDocs : requiredNotaryDocs), [isClient]);
+  const [formState, setFormState] = useState({
+    organization: {
+      companyName: "",
+      companyType: "",
+      website: "",
+      mainOfficePhone: "",
+    },
+    address: {
+      line1: "",
+      line2: "",
+      city: "",
+      state: "",
+      zip: "",
+      country: "United States",
+    },
+    primaryContact: {
+      name: "",
+      email: "",
+      phone: "",
+    },
+    secondaryContact: {
+      name: "",
+      email: "",
+      phone: "",
+    },
+    loginEmail: "",
+    sendInviteEmail: true,
+    requirePasswordReset: true,
+  });
+
+  const updateSection = (section, field, value) => {
+    setFormState((current) => ({
+      ...current,
+      [section]: {
+        ...current[section],
+        [field]: value,
+      },
+    }));
+  };
+
+  const updateField = (field, value) => {
+    setFormState((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleClientSubmit = async () => {
+    if (!isClient) {
+      toast.info("Notary creation stays in the next module pass.");
+      return;
+    }
+
+    try {
+      const result = await dispatch(
+        createClient({
+          loginEmail: formState.loginEmail || formState.primaryContact.email,
+          organization: formState.organization,
+          address: formState.address,
+          primaryContact: formState.primaryContact,
+          secondaryContact: formState.secondaryContact,
+          sendInviteEmail: formState.sendInviteEmail,
+        })
+      ).unwrap();
+
+      toast.success("Client created successfully.", {
+        description: result?.temporaryPassword
+          ? `Temporary password: ${result.temporaryPassword}`
+          : "The client can now sign in after receiving the invite email.",
+      });
+
+      navigate("/users");
+    } catch (error) {
+      toast.error(error || "Unable to create client.");
+    }
+  };
 
   return (
     <div>
@@ -70,30 +152,84 @@ const UserFormPage = () => {
               <Card className="p-6">
                 <SectionTitle icon={Building2} title="Organization Information" />
                 <div className="grid gap-5 md:grid-cols-2">
-                  <Field label="Company Name" required placeholder="e.g. Global Logistics Inc." />
-                  <SelectField label="Company Type">
+                  <Field
+                    label="Company Name"
+                    required
+                    placeholder="e.g. Global Logistics Inc."
+                    value={formState.organization.companyName}
+                    onChange={(event) => updateSection("organization", "companyName", event.target.value)}
+                  />
+                  <SelectField
+                    label="Company Type"
+                    value={formState.organization.companyType}
+                    onChange={(event) => updateSection("organization", "companyType", event.target.value)}
+                  >
                     <option>Select Type</option>
                     <option>LLC</option>
                     <option>Corporation</option>
                     <option>Title Company</option>
                   </SelectField>
-                  <Field label="Website" placeholder="https://www.example.com" />
-                  <Field label="Main Office Phone" required placeholder="+1 (555) 000-0000" />
+                  <Field
+                    label="Website"
+                    placeholder="https://www.example.com"
+                    value={formState.organization.website}
+                    onChange={(event) => updateSection("organization", "website", event.target.value)}
+                  />
+                  <Field
+                    label="Main Office Phone"
+                    required
+                    placeholder="+1 (555) 000-0000"
+                    value={formState.organization.mainOfficePhone}
+                    onChange={(event) => updateSection("organization", "mainOfficePhone", event.target.value)}
+                  />
                 </div>
               </Card>
 
               <Card className="p-6">
                 <SectionTitle icon={MapPin} title="Business Address" />
                 <div className="grid gap-5 md:grid-cols-6">
-                  <Field label="Address Line 1" required placeholder="Street Address" className="md:col-span-4" />
-                  <Field label="Address Line 2" placeholder="Suite / Unit" className="md:col-span-2" />
-                  <Field label="City" required placeholder="City" className="md:col-span-2" />
-                  <SelectField label="State" required className="md:col-span-2">
+                  <Field
+                    label="Address Line 1"
+                    required
+                    placeholder="Street Address"
+                    className="md:col-span-4"
+                    value={formState.address.line1}
+                    onChange={(event) => updateSection("address", "line1", event.target.value)}
+                  />
+                  <Field
+                    label="Address Line 2"
+                    placeholder="Suite / Unit"
+                    className="md:col-span-2"
+                    value={formState.address.line2}
+                    onChange={(event) => updateSection("address", "line2", event.target.value)}
+                  />
+                  <Field
+                    label="City"
+                    required
+                    placeholder="City"
+                    className="md:col-span-2"
+                    value={formState.address.city}
+                    onChange={(event) => updateSection("address", "city", event.target.value)}
+                  />
+                  <SelectField
+                    label="State"
+                    required
+                    className="md:col-span-2"
+                    value={formState.address.state}
+                    onChange={(event) => updateSection("address", "state", event.target.value)}
+                  >
                     <option>Select State</option>
                     <option>Texas</option>
                     <option>New York</option>
                   </SelectField>
-                  <Field label="ZIP Code" required placeholder="00000" className="md:col-span-2" />
+                  <Field
+                    label="ZIP Code"
+                    required
+                    placeholder="00000"
+                    className="md:col-span-2"
+                    value={formState.address.zip}
+                    onChange={(event) => updateSection("address", "zip", event.target.value)}
+                  />
                 </div>
               </Card>
 
@@ -101,16 +237,49 @@ const UserFormPage = () => {
                 <SectionTitle icon={UserRound} title="Contact Details" />
                 <p className="mb-4 text-xs font-bold uppercase text-slate-400">Primary Contact</p>
                 <div className="grid gap-5 md:grid-cols-3">
-                  <Field label="Name" required placeholder="Full Name" />
-                  <Field label="Email" required placeholder="email@company.com" />
-                  <Field label="Phone" required placeholder="+1 (555) 000-0000" />
+                  <Field
+                    label="Name"
+                    required
+                    placeholder="Full Name"
+                    value={formState.primaryContact.name}
+                    onChange={(event) => updateSection("primaryContact", "name", event.target.value)}
+                  />
+                  <Field
+                    label="Email"
+                    required
+                    placeholder="email@company.com"
+                    value={formState.primaryContact.email}
+                    onChange={(event) => updateSection("primaryContact", "email", event.target.value)}
+                  />
+                  <Field
+                    label="Phone"
+                    required
+                    placeholder="+1 (555) 000-0000"
+                    value={formState.primaryContact.phone}
+                    onChange={(event) => updateSection("primaryContact", "phone", event.target.value)}
+                  />
                 </div>
                 <div className="my-7 h-px bg-slate-100" />
                 <p className="mb-4 text-xs font-bold uppercase text-slate-400">Secondary Contact (Optional)</p>
                 <div className="grid gap-5 md:grid-cols-3">
-                  <Field label="Name" placeholder="Full Name" />
-                  <Field label="Email" placeholder="email@company.com" />
-                  <Field label="Phone" placeholder="+1 (555) 000-0000" />
+                  <Field
+                    label="Name"
+                    placeholder="Full Name"
+                    value={formState.secondaryContact.name}
+                    onChange={(event) => updateSection("secondaryContact", "name", event.target.value)}
+                  />
+                  <Field
+                    label="Email"
+                    placeholder="email@company.com"
+                    value={formState.secondaryContact.email}
+                    onChange={(event) => updateSection("secondaryContact", "email", event.target.value)}
+                  />
+                  <Field
+                    label="Phone"
+                    placeholder="+1 (555) 000-0000"
+                    value={formState.secondaryContact.phone}
+                    onChange={(event) => updateSection("secondaryContact", "phone", event.target.value)}
+                  />
                 </div>
               </Card>
             </>
@@ -165,17 +334,35 @@ const UserFormPage = () => {
           <Card className="p-6">
             <SectionTitle icon={LockKeyhole} title="Account Setup" />
             <div className="grid gap-5 md:grid-cols-2">
-              <Field label="Login Email" required placeholder="admin@company.com" className="md:col-span-2" />
-              <Field label="Password" required placeholder="••••••••" type="password" />
-              <Field label="Confirm Password" required placeholder="••••••••" type="password" />
+              <Field
+                label="Login Email"
+                required
+                placeholder="admin@company.com"
+                className="md:col-span-2"
+                value={formState.loginEmail}
+                onChange={(event) => updateField("loginEmail", event.target.value)}
+              />
+              <Field label="Password" placeholder="Auto-generated on save" type="password" disabled />
+              <Field label="Confirm Password" placeholder="Auto-generated on save" type="password" disabled />
             </div>
             <div className="mt-5 space-y-3">
               <label className="flex items-center gap-3 text-sm text-slate-700">
-                <input type="checkbox" className="h-5 w-5 rounded border-[var(--color-border)] p-0" />
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 rounded border-[var(--color-border)] p-0"
+                  checked={formState.sendInviteEmail}
+                  onChange={(event) => updateField("sendInviteEmail", event.target.checked)}
+                />
                 Send Invite Email to primary contact immediately
               </label>
               <label className="flex items-center gap-3 text-sm text-slate-700">
-                <input type="checkbox" className="h-5 w-5 rounded border-[var(--color-border)] p-0" />
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 rounded border-[var(--color-border)] p-0"
+                  checked={formState.requirePasswordReset}
+                  onChange={(event) => updateField("requirePasswordReset", event.target.checked)}
+                  disabled
+                />
                 Require password reset on first login
               </label>
             </div>
@@ -224,8 +411,15 @@ const UserFormPage = () => {
               </div>
             )}
             <div className="mt-6 space-y-3">
-              <Button icon={Save} className="w-full">
-                Save {isClient ? "Client" : "Notary"}
+              <Button
+                icon={Save}
+                className="w-full"
+                onClick={handleClientSubmit}
+                disabled={isClient && createClientStatus === "loading"}
+              >
+                {createClientStatus === "loading" && isClient
+                  ? "Saving Client..."
+                  : `Save ${isClient ? "Client" : "Notary"}`}
               </Button>
               <Button variant="secondary" className="w-full">
                 Cancel

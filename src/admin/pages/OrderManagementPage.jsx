@@ -28,9 +28,10 @@ import {
   Pagination,
   StatusBadge,
 } from "../components/ui";
-import { notaries, orders } from "../data/notarixData";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
-const AssignNotaryModal = ({ open, onClose }) => (
+const AssignNotaryModal = ({ open, onClose, notaries }) => (
   <Modal
     open={open}
     onClose={onClose}
@@ -124,6 +125,7 @@ const AssignNotaryModal = ({ open, onClose }) => (
 
 const OrderManagementPage = () => {
   const [assignOpen, setAssignOpen] = useState(false);
+  const { metrics, notaries, orders } = useAppSelector(selectAdminConsole);
 
   return (
     <div>
@@ -133,11 +135,11 @@ const OrderManagementPage = () => {
       />
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Total" value="1,284" change="+12% from last month" icon={ClipboardList} />
-        <MetricCard label="Pending" value="42" icon={Hourglass} />
-        <MetricCard label="Assigned" value="156" icon={UserPlus} />
-        <MetricCard label="In Progress" value="89" icon={CalendarClock} />
-        <MetricCard label="Completed" value="997" icon={CheckCircle2} />
+        <MetricCard label="Total" value={String(metrics.totalOrders || orders.length)} change="+12% from last month" icon={ClipboardList} />
+        <MetricCard label="Pending" value={String(metrics.pendingOrders || 0)} icon={Hourglass} />
+        <MetricCard label="Assigned" value={String(orders.filter((item) => item.status === "Assigned").length)} icon={UserPlus} />
+        <MetricCard label="In Progress" value={String(orders.filter((item) => item.status === "In Progress").length)} icon={CalendarClock} />
+        <MetricCard label="Completed" value={String(metrics.completedOrders || 0)} icon={CheckCircle2} />
       </div>
 
       <Card className="mt-8 p-4">
@@ -208,7 +210,7 @@ const OrderManagementPage = () => {
         </div>
       </Card>
 
-      <AssignNotaryModal open={assignOpen} onClose={() => setAssignOpen(false)} />
+      <AssignNotaryModal open={assignOpen} onClose={() => setAssignOpen(false)} notaries={notaries} />
     </div>
   );
 };
