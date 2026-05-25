@@ -23,7 +23,11 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
-import { createClient, selectAdminConsole } from "../../store/adminConsoleSlice";
+import {
+  createClient,
+  createNotary,
+  selectAdminConsole,
+} from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { toast } from "sonner";
 
@@ -48,7 +52,7 @@ const UserFormPage = () => {
   const [searchParams] = useSearchParams();
   const initialType = searchParams.get("type") === "notary" ? "notary" : "client";
   const [type, setType] = useState(initialType);
-  const { createClientStatus } = useAppSelector(selectAdminConsole);
+  const { createClientStatus, createNotaryStatus } = useAppSelector(selectAdminConsole);
   const isClient = type === "client";
   const documentList = useMemo(() => (isClient ? requiredClientDocs : requiredNotaryDocs), [isClient]);
   const [clientDocuments, setClientDocuments] = useState(
@@ -79,15 +83,33 @@ const UserFormPage = () => {
       email: "",
       phone: "",
     },
+    personalInfo: {
+      fullName: "",
+      email: "",
+      phone: "",
+    },
     secondaryContact: {
       name: "",
       email: "",
       phone: "",
     },
+    commission: {
+      number: "",
+      state: "",
+      expirationDate: "",
+    },
     loginEmail: "",
     sendInviteEmail: true,
     requirePasswordReset: true,
   });
+  const [notaryDocumentsState, setNotaryDocumentsState] = useState(
+    requiredNotaryDocs.map(([title, description]) => ({
+      id: title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-"),
+      title,
+      description,
+      file: null,
+    }))
+  );
 
   const updateSection = (section, field, value) => {
     setFormState((current) => ({
@@ -108,7 +130,40 @@ const UserFormPage = () => {
 
   const handleClientSubmit = async () => {
     if (!isClient) {
-      toast.info("Notary creation stays in the next module pass.");
+      try {
+        const result = await dispatch(
+          createNotary({
+            loginEmail: formState.loginEmail || formState.personalInfo.email,
+            personalInfo: formState.personalInfo,
+            address: formState.address,
+            commission: formState.commission,
+            requiredDocuments: notaryDocumentsState.map((document) => ({
+              title: document.title,
+              status: document.file ? "Pending" : "Missing",
+              file: document.file?.name || null,
+              mimeType: document.file?.type,
+              size: document.file?.size,
+            })),
+            documentUploads: notaryDocumentsState
+              .filter((document) => document.file)
+              .map((document) => ({
+                title: document.title,
+                file: document.file,
+              })),
+            sendInviteEmail: formState.sendInviteEmail,
+          })
+        ).unwrap();
+
+        toast.success("Notary created successfully.", {
+          description: result?.temporaryPassword
+            ? `Temporary password: ${result.temporaryPassword}`
+            : "The notary can now sign in after receiving the invite email.",
+        });
+
+        navigate("/users");
+      } catch (error) {
+        toast.error(error || "Unable to create notary.");
+      }
       return;
     }
 
@@ -151,6 +206,19 @@ const UserFormPage = () => {
 
   const handleClientDocumentChange = (title, file) => {
     setClientDocuments((current) =>
+      current.map((document) =>
+        document.title === title
+          ? {
+              ...document,
+              file,
+            }
+          : document
+      )
+    );
+  };
+
+  const handleNotaryDocumentChange = (title, file) => {
+    setNotaryDocumentsState((current) =>
       current.map((document) =>
         document.title === title
           ? {
@@ -322,9 +390,27 @@ const UserFormPage = () => {
               <Card className="p-6">
                 <SectionTitle icon={UserRound} title="Personal Information" />
                 <div className="grid gap-5 md:grid-cols-2">
-                  <Field label="Full Name" required placeholder="e.g. Johnathan Smith" />
-                  <Field label="Email Address" required placeholder="john@example.com" />
-                  <Field label="Phone Number" required placeholder="+1 (555) 000-0000" />
+                  <Field
+                    label="Full Name"
+                    required
+                    placeholder="e.g. Johnathan Smith"
+                    value={formState.personalInfo.fullName}
+                    onChange={(event) => updateSection("personalInfo", "fullName", event.target.value)}
+                  />
+                  <Field
+                    label="Email Address"
+                    required
+                    placeholder="john@example.com"
+                    value={formState.personalInfo.email}
+                    onChange={(event) => updateSection("personalInfo", "email", event.target.value)}
+                  />
+                  <Field
+                    label="Phone Number"
+                    required
+                    placeholder="+1 (555) 000-0000"
+                    value={formState.personalInfo.phone}
+                    onChange={(event) => updateSection("personalInfo", "phone", event.target.value)}
+                  />
                   <div>
                     <span className="mb-2 block text-sm font-semibold text-slate-700">Profile Photo</span>
                     <button type="button" className="flex h-11 items-center gap-3 rounded-lg text-[var(--color-brand-primary)]">
@@ -340,24 +426,76 @@ const UserFormPage = () => {
               <Card className="p-6">
                 <SectionTitle icon={MapPin} title="Address Information" />
                 <div className="grid gap-5 md:grid-cols-6">
-                  <Field label="Address Line 1" required placeholder="123 Legal Way" className="md:col-span-4" />
-                  <Field label="Address Line 2" placeholder="Suite 400" className="md:col-span-2" />
-                  <Field label="City" required placeholder="Austin" className="md:col-span-2" />
-                  <SelectField label="State" required className="md:col-span-2">
+                  <Field
+                    label="Address Line 1"
+                    required
+                    placeholder="123 Legal Way"
+                    className="md:col-span-4"
+                    value={formState.address.line1}
+                    onChange={(event) => updateSection("address", "line1", event.target.value)}
+                  />
+                  <Field
+                    label="Address Line 2"
+                    placeholder="Suite 400"
+                    className="md:col-span-2"
+                    value={formState.address.line2}
+                    onChange={(event) => updateSection("address", "line2", event.target.value)}
+                  />
+                  <Field
+                    label="City"
+                    required
+                    placeholder="Austin"
+                    className="md:col-span-2"
+                    value={formState.address.city}
+                    onChange={(event) => updateSection("address", "city", event.target.value)}
+                  />
+                  <SelectField
+                    label="State"
+                    required
+                    className="md:col-span-2"
+                    value={formState.address.state}
+                    onChange={(event) => updateSection("address", "state", event.target.value)}
+                  >
                     <option>Select State</option>
                     <option>Texas</option>
                     <option>New York</option>
                   </SelectField>
-                  <Field label="ZIP Code" required placeholder="78701" className="md:col-span-2" />
+                  <Field
+                    label="ZIP Code"
+                    required
+                    placeholder="78701"
+                    className="md:col-span-2"
+                    value={formState.address.zip}
+                    onChange={(event) => updateSection("address", "zip", event.target.value)}
+                  />
                 </div>
               </Card>
 
               <Card className="p-6">
                 <SectionTitle icon={ShieldCheck} title="Commission Details" />
                 <div className="grid gap-5 md:grid-cols-2">
-                  <Field label="Commission Number" required placeholder="TX-99283-A" />
-                  <Field label="Commission State" required placeholder="Texas" />
-                  <Field label="Commission Expiration Date" required placeholder="mm/dd/yyyy" type="date" />
+                  <Field
+                    label="Commission Number"
+                    required
+                    placeholder="TX-99283-A"
+                    value={formState.commission.number}
+                    onChange={(event) => updateSection("commission", "number", event.target.value)}
+                  />
+                  <Field
+                    label="Commission State"
+                    required
+                    placeholder="Texas"
+                    value={formState.commission.state}
+                    onChange={(event) => updateSection("commission", "state", event.target.value)}
+                  />
+                  <Field
+                    label="Commission Expiration Date"
+                    required
+                    placeholder="mm/dd/yyyy"
+                    type="date"
+                    value={formState.commission.expirationDate}
+                    onChange={(event) => updateSection("commission", "expirationDate", event.target.value)}
+                  />
                   <Field label="Travel Radius (miles)" placeholder="25" />
                   <TextArea label="Coverage Areas (Counties or Cities)" required placeholder="Travis, Williamson, Hays..." className="md:col-span-2" />
                 </div>
@@ -408,7 +546,7 @@ const UserFormPage = () => {
               {documentList.map(([title, description], index) => {
                 const selectedDocument = isClient
                   ? clientDocuments.find((document) => document.title === title)
-                  : null;
+                  : notaryDocumentsState.find((document) => document.title === title);
 
                 return (
                   <div key={title} className="rounded-lg border border-[var(--color-border)] p-4">
@@ -419,35 +557,33 @@ const UserFormPage = () => {
                       </div>
                       <StatusBadge
                         status={
-                          isClient
-                            ? selectedDocument?.file
-                              ? "Pending"
-                              : "Missing"
-                            : index === 1
-                              ? "Uploaded"
-                              : "Missing"
+                          selectedDocument?.file
+                            ? "Pending"
+                            : "Missing"
                         }
                       />
                     </div>
                     {isClient ? (
-                      <label className="block">
-                        <input
-                          type="file"
-                          className="hidden"
-                          onChange={(event) =>
-                            handleClientDocumentChange(title, event.target.files?.[0] || null)
-                          }
-                        />
+                    <label className="block">
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(event) =>
+                          (isClient
+                            ? handleClientDocumentChange(title, event.target.files?.[0] || null)
+                            : handleNotaryDocumentChange(title, event.target.files?.[0] || null))
+                        }
+                      />
                         <Button
                           type="button"
                           variant="secondary"
                           size="sm"
                           icon={FolderUp}
-                          className="w-full text-[var(--color-brand-primary)]"
-                        >
-                          {selectedDocument?.file ? selectedDocument.file.name : "Upload"}
-                        </Button>
-                      </label>
+                        className="w-full text-[var(--color-brand-primary)]"
+                      >
+                        {selectedDocument?.file ? selectedDocument.file.name : "Upload"}
+                      </Button>
+                    </label>
                     ) : (
                       <Button
                         variant="secondary"
@@ -491,10 +627,14 @@ const UserFormPage = () => {
                 icon={Save}
                 className="w-full"
                 onClick={handleClientSubmit}
-                disabled={isClient && createClientStatus === "loading"}
+                disabled={
+                  (isClient && createClientStatus === "loading") ||
+                  (!isClient && createNotaryStatus === "loading")
+                }
               >
-                {createClientStatus === "loading" && isClient
-                  ? "Saving Client..."
+                {(createClientStatus === "loading" && isClient) ||
+                (createNotaryStatus === "loading" && !isClient)
+                  ? `Saving ${isClient ? "Client" : "Notary"}...`
                   : `Save ${isClient ? "Client" : "Notary"}`}
               </Button>
               <Button variant="secondary" className="w-full">

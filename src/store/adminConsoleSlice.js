@@ -93,6 +93,39 @@ export const createClient = createAsyncThunk(
   }
 );
 
+export const createNotary = createAsyncThunk(
+  "adminConsole/createNotary",
+  async (notaryPayload, { dispatch, rejectWithValue }) => {
+    try {
+      const { documentUploads = [], ...createBody } = notaryPayload;
+      const payload = await apiRequest("/admin/users/notary", {
+        method: "POST",
+        body: createBody,
+      });
+
+      const createdNotary = payload?.data || payload;
+      if (createdNotary?.userId && documentUploads.length > 0) {
+        const formData = new FormData();
+        documentUploads.forEach((item) => {
+          formData.append("documents", item.file);
+          formData.append("documentTitles", item.title);
+        });
+
+        await apiRequest(`/admin/users/${createdNotary.userId}/documents`, {
+          method: "POST",
+          body: formData,
+          contentType: null,
+        });
+      }
+
+      await dispatch(fetchAdminConsole());
+      return createdNotary;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to create notary.");
+    }
+  }
+);
+
 export const fetchAdminUser = createAsyncThunk(
   "adminConsole/fetchAdminUser",
   async (userId, { rejectWithValue }) => {
@@ -134,6 +167,8 @@ const adminConsoleSlice = createSlice({
     error: null,
     createClientStatus: "idle",
     createClientError: null,
+    createNotaryStatus: "idle",
+    createNotaryError: null,
     activeUser: null,
     activeUserStatus: "idle",
     activeUserError: null,
@@ -166,6 +201,18 @@ const adminConsoleSlice = createSlice({
       .addCase(createClient.rejected, (state, action) => {
         state.createClientStatus = "error";
         state.createClientError = action.payload || "Unable to create client.";
+      })
+      .addCase(createNotary.pending, (state) => {
+        state.createNotaryStatus = "loading";
+        state.createNotaryError = null;
+      })
+      .addCase(createNotary.fulfilled, (state) => {
+        state.createNotaryStatus = "succeeded";
+        state.createNotaryError = null;
+      })
+      .addCase(createNotary.rejected, (state, action) => {
+        state.createNotaryStatus = "error";
+        state.createNotaryError = action.payload || "Unable to create notary.";
       })
       .addCase(fetchAdminUser.pending, (state) => {
         state.activeUserStatus = "loading";
