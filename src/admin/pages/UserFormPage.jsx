@@ -97,6 +97,7 @@ const UserFormPage = () => {
       number: "",
       state: "",
       expirationDate: "",
+      travelRadius: "",
     },
     loginEmail: "",
     sendInviteEmail: true,
@@ -496,7 +497,12 @@ const UserFormPage = () => {
                     value={formState.commission.expirationDate}
                     onChange={(event) => updateSection("commission", "expirationDate", event.target.value)}
                   />
-                  <Field label="Travel Radius (miles)" placeholder="25" />
+                  <Field
+                    label="Travel Radius (miles)"
+                    placeholder="25"
+                    value={formState.commission.travelRadius}
+                    onChange={(event) => updateSection("commission", "travelRadius", event.target.value)}
+                  />
                   <TextArea label="Coverage Areas (Counties or Cities)" required placeholder="Travis, Williamson, Hays..." className="md:col-span-2" />
                 </div>
               </Card>
@@ -543,7 +549,7 @@ const UserFormPage = () => {
           <Card className="p-6">
             <SectionTitle icon={FileCheck2} title="Required Documents" />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {documentList.map(([title, description], index) => {
+              {documentList.map(([title, description]) => {
                 const selectedDocument = isClient
                   ? clientDocuments.find((document) => document.title === title)
                   : notaryDocumentsState.find((document) => document.title === title);
