@@ -93,6 +93,39 @@ export const createClient = createAsyncThunk(
   }
 );
 
+export const fetchAdminUser = createAsyncThunk(
+  "adminConsole/fetchAdminUser",
+  async (userId, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/users/${userId}`);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load user profile.");
+    }
+  }
+);
+
+export const updateUserDocumentStatus = createAsyncThunk(
+  "adminConsole/updateUserDocumentStatus",
+  async ({ userId, documentId, status }, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/users/${userId}/documents/${documentId}/status`, {
+        method: "PATCH",
+        body: { status },
+      });
+
+      await Promise.all([
+        dispatch(fetchAdminUser(userId)),
+        dispatch(fetchAdminConsole()),
+      ]);
+
+      return { userId, documentId, status };
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update document status.");
+    }
+  }
+);
+
 const adminConsoleSlice = createSlice({
   name: "adminConsole",
   initialState: {
@@ -101,6 +134,9 @@ const adminConsoleSlice = createSlice({
     error: null,
     createClientStatus: "idle",
     createClientError: null,
+    activeUser: null,
+    activeUserStatus: "idle",
+    activeUserError: null,
   },
   reducers: {},
   extraReducers: (builder) => {
@@ -130,6 +166,20 @@ const adminConsoleSlice = createSlice({
       .addCase(createClient.rejected, (state, action) => {
         state.createClientStatus = "error";
         state.createClientError = action.payload || "Unable to create client.";
+      })
+      .addCase(fetchAdminUser.pending, (state) => {
+        state.activeUserStatus = "loading";
+        state.activeUserError = null;
+      })
+      .addCase(fetchAdminUser.fulfilled, (state, action) => {
+        state.activeUser = action.payload;
+        state.activeUserStatus = "ready";
+        state.activeUserError = null;
+      })
+      .addCase(fetchAdminUser.rejected, (state, action) => {
+        state.activeUser = null;
+        state.activeUserStatus = "error";
+        state.activeUserError = action.payload || "Unable to load user profile.";
       });
   },
 });

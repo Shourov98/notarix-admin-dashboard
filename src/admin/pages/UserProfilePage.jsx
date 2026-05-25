@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
   Building2,
@@ -20,6 +21,13 @@ import {
   StatusBadge,
 } from "../components/ui";
 import { clientDocuments, notaryDocuments } from "../data/notarixData";
+import {
+  fetchAdminUser,
+  selectAdminConsole,
+  updateUserDocumentStatus,
+} from "../../store/adminConsoleSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { toast } from "sonner";
 
 const InfoLine = ({ label, value, link }) => (
   <div>
@@ -28,40 +36,46 @@ const InfoLine = ({ label, value, link }) => (
   </div>
 );
 
-const ClientOverview = () => (
+const ClientOverview = ({ client }) => (
   <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
     <div className="grid gap-6 md:grid-cols-2">
       <Card className="p-6">
         <SectionTitle icon={Building2} title="Organization Information" />
         <div className="space-y-5">
-          <InfoLine label="Company Name" value="Axiom Real Estate Group LLC" />
-          <InfoLine label="Company Type" value="Private Limited Company" />
-          <InfoLine label="Website" value="www.axiomrealestate.com" link />
+          <InfoLine label="Company Name" value={client?.organization?.companyName || "Not provided"} />
+          <InfoLine label="Company Type" value={client?.organization?.companyType || "Not provided"} />
+          <InfoLine label="Website" value={client?.organization?.website || "Not provided"} link />
         </div>
       </Card>
       <Card className="p-6">
         <SectionTitle icon={MapPin} title="Business Address" />
         <div className="grid gap-5 sm:grid-cols-2">
-          <InfoLine label="Address Line 1" value="1200 Avenue of the Americas" />
-          <InfoLine label="City" value="New York" />
-          <InfoLine label="State / ZIP" value="NY, 10036" />
-          <InfoLine label="Country" value="United States" />
+          <InfoLine label="Address Line 1" value={client?.address?.line1 || "Not provided"} />
+          <InfoLine label="City" value={client?.address?.city || "Not provided"} />
+          <InfoLine
+            label="State / ZIP"
+            value={
+              [client?.address?.state, client?.address?.zip].filter(Boolean).join(", ") ||
+              "Not provided"
+            }
+          />
+          <InfoLine label="Country" value={client?.address?.country || "United States"} />
         </div>
       </Card>
       <Card className="p-6">
         <SectionTitle icon={UserRound} title="Primary Contact" action={<StatusBadge status="Principal" />} />
         <div className="space-y-5">
-          <InfoLine label="Full Name" value="Elena Rodriguez" />
-          <InfoLine label="Email Address" value="e.rodriguez@axiomre.com" />
-          <InfoLine label="Phone Number" value="+1 (555) 012-3456" />
+          <InfoLine label="Full Name" value={client?.primaryContact?.name || "Not provided"} />
+          <InfoLine label="Email Address" value={client?.primaryContact?.email || "Not provided"} />
+          <InfoLine label="Phone Number" value={client?.primaryContact?.phone || "Not provided"} />
         </div>
       </Card>
       <Card className="p-6">
         <SectionTitle icon={UserRound} title="Secondary Contact" />
         <div className="space-y-5">
-          <InfoLine label="Full Name" value="David Chen" />
-          <InfoLine label="Email Address" value="d.chen@axiomre.com" />
-          <InfoLine label="Phone Number" value="+1 (555) 012-9876" />
+          <InfoLine label="Full Name" value={client?.secondaryContact?.name || "Not provided"} />
+          <InfoLine label="Email Address" value={client?.secondaryContact?.email || "Not provided"} />
+          <InfoLine label="Phone Number" value={client?.secondaryContact?.phone || "Not provided"} />
         </div>
       </Card>
     </div>
@@ -97,13 +111,13 @@ const ClientOverview = () => (
   </div>
 );
 
-const ClientDocuments = () => (
+const ClientDocuments = ({ documents = [], onApprove }) => (
   <div>
     <div className="mb-8 grid gap-6 md:grid-cols-3">
       {[
-        ["Missing Documents", "02"],
-        ["Pending Review", "03"],
-        ["Verified Documents", "05"],
+        ["Missing Documents", String(documents.filter((doc) => doc.status === "Missing").length)],
+        ["Pending Review", String(documents.filter((doc) => doc.status === "Pending").length)],
+        ["Verified Documents", String(documents.filter((doc) => doc.status === "Verified").length)],
       ].map(([label, value]) => (
         <Card key={label} className="flex items-center justify-between p-7">
           <div>
@@ -117,7 +131,7 @@ const ClientDocuments = () => (
       ))}
     </div>
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-      {clientDocuments.map((doc) => (
+      {(documents.length ? documents : clientDocuments).map((doc) => (
         <Card key={doc.title} className={`p-6 ${doc.status === "Rejected" ? "border-red-200 bg-red-50" : ""}`}>
           <div className="mb-4 flex items-start justify-between">
             <h3 className="text-lg font-bold">{doc.title}</h3>
@@ -144,7 +158,7 @@ const ClientDocuments = () => (
               </Button>
             ) : (
               <>
-                <Button>Approve</Button>
+                <Button onClick={() => onApprove?.(doc.id)}>Approve</Button>
                 <Button variant="danger">Reject</Button>
                 <Button variant="secondary" className="sm:col-span-2">View Document</Button>
               </>
@@ -330,11 +344,39 @@ const NotaryDocuments = () => (
 );
 
 const UserProfilePage = ({ type = "client" }) => {
+  const dispatch = useAppDispatch();
   const { id } = useParams();
   const location = useLocation();
+  const { activeUser, activeUserStatus } = useAppSelector(selectAdminConsole);
   const isDocuments = location.pathname.endsWith("/documents");
   const isNotary = type === "notary";
   const basePath = `/users/${type}/${id || (isNotary ? "sarah-jenkins" : "michael-chen")}`;
+  const client = !isNotary && activeUser?.id === id ? activeUser : null;
+
+  useEffect(() => {
+    if (!isNotary && id) {
+      dispatch(fetchAdminUser(id));
+    }
+  }, [dispatch, id, isNotary]);
+
+  const handleApproveDocument = async (documentId) => {
+    if (!id || !documentId) {
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateUserDocumentStatus({
+          userId: id,
+          documentId,
+          status: "Verified",
+        })
+      ).unwrap();
+      toast.success("Document marked as verified.");
+    } catch (error) {
+      toast.error(error || "Unable to verify document.");
+    }
+  };
 
   return (
     <div>
@@ -355,13 +397,19 @@ const UserProfilePage = ({ type = "client" }) => {
         <Card className="mb-7 p-6">
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-5">
-              <Avatar name="Michael Chen" size="lg" tone="bg-slate-200 text-slate-700" />
+              <Avatar
+                name={client?.name || "Michael Chen"}
+                size="lg"
+                tone={client?.avatarTone || "bg-slate-200 text-slate-700"}
+              />
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-bold">Michael Chen</h2>
-                  <StatusBadge status="Pending" />
+                  <h2 className="text-2xl font-bold">{client?.name || "Michael Chen"}</h2>
+                  <StatusBadge status={client?.status || "Pending"} />
                 </div>
-                <p className="mt-1 text-slate-500">Code: AXM-4410</p>
+                <p className="mt-1 text-slate-500">
+                  {activeUserStatus === "loading" ? "Loading profile..." : `Code: ${id || "AXM-4410"}`}
+                </p>
               </div>
             </div>
             <div className="w-full max-w-xs">
@@ -396,7 +444,16 @@ const UserProfilePage = ({ type = "client" }) => {
         </div>
       </div>
 
-      {isNotary ? (isDocuments ? <NotaryDocuments /> : <NotaryOverview />) : isDocuments ? <ClientDocuments /> : <ClientOverview />}
+      {isNotary ? (
+        isDocuments ? <NotaryDocuments /> : <NotaryOverview />
+      ) : isDocuments ? (
+        <ClientDocuments
+          documents={client?.requiredDocuments || []}
+          onApprove={handleApproveDocument}
+        />
+      ) : (
+        <ClientOverview client={client} />
+      )}
     </div>
   );
 };
