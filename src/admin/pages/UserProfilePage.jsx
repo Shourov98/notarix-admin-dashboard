@@ -111,7 +111,7 @@ const ClientOverview = ({ client }) => (
   </div>
 );
 
-const ClientDocuments = ({ documents = [], onApprove }) => (
+const ClientDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
   <div>
     <div className="mb-8 grid gap-6 md:grid-cols-3">
       {[
@@ -154,12 +154,14 @@ const ClientDocuments = ({ documents = [], onApprove }) => (
           <div className="grid gap-2 sm:grid-cols-2">
             {doc.status === "Missing" ? (
               <Button variant="subtle" className="sm:col-span-2" disabled>
-                Waiting for Client
+                Marked Missing
               </Button>
             ) : (
               <>
                 <Button onClick={() => onApprove?.(doc.id)}>Approve</Button>
-                <Button variant="danger">Reject</Button>
+                <Button variant="danger" onClick={() => onMarkMissing?.(doc.id)}>
+                  Mark Missing
+                </Button>
                 <Button variant="secondary" className="sm:col-span-2">View Document</Button>
               </>
             )}
@@ -378,6 +380,25 @@ const UserProfilePage = ({ type = "client" }) => {
     }
   };
 
+  const handleMarkMissing = async (documentId) => {
+    if (!id || !documentId) {
+      return;
+    }
+
+    try {
+      await dispatch(
+        updateUserDocumentStatus({
+          userId: id,
+          documentId,
+          status: "Missing",
+        })
+      ).unwrap();
+      toast.success("Document marked as missing.");
+    } catch (error) {
+      toast.error(error || "Unable to mark document as missing.");
+    }
+  };
+
   return (
     <div>
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -450,6 +471,7 @@ const UserProfilePage = ({ type = "client" }) => {
         <ClientDocuments
           documents={client?.requiredDocuments || []}
           onApprove={handleApproveDocument}
+          onMarkMissing={handleMarkMissing}
         />
       ) : (
         <ClientOverview client={client} />
