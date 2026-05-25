@@ -78,6 +78,18 @@ const ClientOverview = ({ client }) => (
           <InfoLine label="Phone Number" value={client?.secondaryContact?.phone || "Not provided"} />
         </div>
       </Card>
+      <Card className="p-6 md:col-span-2">
+        <SectionTitle icon={Landmark} title="Bank Information" action={<StatusBadge status="Masked" />} />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <InfoLine label="Bank Name" value={client?.bankInfo?.bankName || "Not provided"} />
+          <InfoLine
+            label="Account Holder"
+            value={client?.bankInfo?.accountHolderName || "Not provided"}
+          />
+          <InfoLine label="Routing Number" value={client?.bankInfo?.routingNumber || "Not provided"} />
+          <InfoLine label="Account Number" value={client?.bankInfo?.accountNumber || "Not provided"} />
+        </div>
+      </Card>
     </div>
     <aside className="space-y-6">
       <Card className="p-7 text-center">
@@ -277,9 +289,10 @@ const NotaryOverview = ({ notary }) => (
       <Card className="p-7">
         <SectionTitle icon={Landmark} title="Payment Details" action={<StatusBadge status="Super Admin Only" />} />
         <div className="space-y-5">
-          <div className="flex justify-between"><span className="text-slate-600">Bank Name</span><strong>Chase Bank</strong></div>
-          <div className="flex justify-between"><span className="text-slate-600">Routing Number</span><strong>********4412</strong></div>
-          <div className="flex justify-between"><span className="text-slate-600">Account Number</span><strong>********9845</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">Bank Name</span><strong>{notary?.bankInfo?.bankName || "Not provided"}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">Account Holder</span><strong>{notary?.bankInfo?.accountHolderName || "Not provided"}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">Routing Number</span><strong>{notary?.bankInfo?.routingNumber || "Not provided"}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">Account Number</span><strong>{notary?.bankInfo?.accountNumber || "Not provided"}</strong></div>
         </div>
       </Card>
     </div>
