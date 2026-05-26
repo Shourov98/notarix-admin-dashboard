@@ -210,14 +210,34 @@ export const TextArea = ({ label, required, className = "", ...props }) => (
   </label>
 );
 
-export const CheckboxLine = ({ label, description, checked = false, className = "" }) => (
+export const CheckboxLine = ({
+  label,
+  description,
+  checked = false,
+  className = "",
+  onChange,
+  disabled = false,
+  name,
+  value,
+}) => (
   <label
     className={cn(
-      "flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--color-border)] bg-white p-3",
+      "flex items-start gap-3 rounded-lg border border-[var(--color-border)] bg-white p-3",
+      onChange && !disabled ? "cursor-pointer" : "cursor-default",
       checked && "border-[var(--color-brand-primary)] bg-blue-50",
+      disabled && "opacity-70",
       className
     )}
   >
+    <input
+      type="checkbox"
+      className="sr-only"
+      checked={checked}
+      onChange={onChange}
+      disabled={disabled}
+      name={name}
+      value={value}
+    />
     <span
       className={cn(
         "mt-1 grid h-5 w-5 shrink-0 place-items-center rounded border border-[var(--color-border)]",
