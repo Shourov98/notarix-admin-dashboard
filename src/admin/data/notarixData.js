@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarCheck,
   CircleDollarSign,
+  ClipboardList,
   ClipboardCheck,
   FileCheck2,
   FileText,
@@ -27,12 +28,14 @@ export const currentAdmin = {
 export const primaryNavItems = [
   { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
   { label: "User Management", path: "/users", icon: Users },
+  { label: "Requests Management", path: "/requests", icon: ClipboardList },
   { label: "Order Management", path: "/orders", icon: CalendarCheck },
   { label: "Document", path: "/documents", icon: FileText },
   { label: "Payments", path: "/payments", icon: CircleDollarSign },
   { label: "Messages", path: "/messages", icon: MessageCircle },
   { label: "Reports", path: "/reports", icon: BarChart3 },
   { label: "Support", path: "/support", icon: Headphones },
+  { label: "Admin Management", path: "/admins", icon: LockKeyhole, superAdminOnly: true },
   { label: "Settings", path: "/settings/profile", icon: Settings },
 ];
 

@@ -103,6 +103,7 @@ const UserFormPage = () => {
     loginEmail: "",
     sendInviteEmail: true,
     requirePasswordReset: true,
+    ronEligible: true,
   });
   const [notaryDocumentsState, setNotaryDocumentsState] = useState(
     requiredNotaryDocs.map(([title, description]) => ({
@@ -132,6 +133,17 @@ const UserFormPage = () => {
 
   const handleClientSubmit = async () => {
     if (!isClient) {
+      const missingNotaryDocuments = notaryDocumentsState
+        .filter((document) => !document.file)
+        .map((document) => document.title);
+
+      if (missingNotaryDocuments.length > 0) {
+        toast.error("All required notary documents must be uploaded before saving.", {
+          description: missingNotaryDocuments.join(", "),
+        });
+        return;
+      }
+
       try {
         const result = await dispatch(
           createNotary({
@@ -139,6 +151,8 @@ const UserFormPage = () => {
             personalInfo: formState.personalInfo,
             address: formState.address,
             commission: formState.commission,
+            passwordResetRequired: formState.requirePasswordReset,
+            ronEligible: formState.ronEligible,
             requiredDocuments: notaryDocumentsState.map((document) => ({
               title: document.title,
               status: document.file ? "Pending" : "Missing",
@@ -177,6 +191,7 @@ const UserFormPage = () => {
           address: formState.address,
           primaryContact: formState.primaryContact,
           secondaryContact: formState.secondaryContact,
+          passwordResetRequired: formState.requirePasswordReset,
           requiredDocuments: clientDocuments.map((document) => ({
             title: document.title,
             status: document.file ? "Pending" : "Missing",
@@ -547,7 +562,6 @@ const UserFormPage = () => {
                   className="h-5 w-5 rounded border-[var(--color-border)] p-0"
                   checked={formState.requirePasswordReset}
                   onChange={(event) => updateField("requirePasswordReset", event.target.checked)}
-                  disabled
                 />
                 Require password reset on first login
               </label>
@@ -555,7 +569,10 @@ const UserFormPage = () => {
           </Card>
 
           <Card className="p-6">
-            <SectionTitle icon={FileCheck2} title="Required Documents" />
+            <SectionTitle
+              icon={FileCheck2}
+              title={isClient ? "Optional Supporting Documents" : "Required Documents"}
+            />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {documentList.map(([title, description]) => {
                 const selectedDocument = isClient
@@ -577,7 +594,6 @@ const UserFormPage = () => {
                         }
                       />
                     </div>
-                    {isClient ? (
                     <label className="block">
                       <input
                         type="file"
@@ -598,16 +614,6 @@ const UserFormPage = () => {
                         {selectedDocument?.file ? selectedDocument.file.name : "Upload"}
                       </Button>
                     </label>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        icon={FolderUp}
-                        className="w-full text-[var(--color-brand-primary)]"
-                      >
-                        Upload
-                      </Button>
-                    )}
                   </div>
                 );
               })}
@@ -664,9 +670,10 @@ const UserFormPage = () => {
           ) : (
             <Card className="p-4">
               <CheckboxLine
-                checked
+                checked={formState.ronEligible}
                 label="RON eligible profile"
                 description="Enable online session review once identity checks pass."
+                onChange={(event) => updateField("ronEligible", event.target.checked)}
               />
             </Card>
           )}

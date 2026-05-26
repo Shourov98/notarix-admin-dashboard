@@ -44,6 +44,51 @@ const normalizeConsoleData = (payload) => ({
 
 const baseState = normalizeConsoleData(null);
 
+export const fetchAdminRequests = createAsyncThunk(
+  "adminConsole/fetchAdminRequests",
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/requests", {
+        query: filters,
+      });
+      return payload?.data || payload || [];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load access requests.");
+    }
+  }
+);
+
+export const approveAdminRequest = createAsyncThunk(
+  "adminConsole/approveAdminRequest",
+  async (requestId, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/requests/${requestId}/approve`, {
+        method: "PATCH",
+      });
+      await dispatch(fetchAdminRequests());
+      return requestId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to approve request.");
+    }
+  }
+);
+
+export const rejectAdminRequest = createAsyncThunk(
+  "adminConsole/rejectAdminRequest",
+  async ({ requestId, reason }, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/requests/${requestId}/reject`, {
+        method: "PATCH",
+        body: { reason },
+      });
+      await dispatch(fetchAdminRequests());
+      return requestId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to reject request.");
+    }
+  }
+);
+
 export const fetchAdminConsole = createAsyncThunk(
   "adminConsole/fetchAdminConsole",
   async (_, { rejectWithValue }) => {
@@ -126,6 +171,67 @@ export const createNotary = createAsyncThunk(
   }
 );
 
+export const fetchAdmins = createAsyncThunk(
+  "adminConsole/fetchAdmins",
+  async (_, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/admins");
+      return payload?.data || payload || [];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load admin list.");
+    }
+  }
+);
+
+export const createAdmin = createAsyncThunk(
+  "adminConsole/createAdmin",
+  async (adminPayload, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/users/admin", {
+        method: "POST",
+        body: adminPayload,
+      });
+
+      await Promise.all([dispatch(fetchAdmins()), dispatch(fetchAdminConsole())]);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to create admin.");
+    }
+  }
+);
+
+export const suspendAdmin = createAsyncThunk(
+  "adminConsole/suspendAdmin",
+  async (adminId, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/admins/${adminId}/suspend`, {
+        method: "PATCH",
+      });
+
+      await Promise.all([dispatch(fetchAdmins()), dispatch(fetchAdminConsole())]);
+      return adminId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to suspend admin.");
+    }
+  }
+);
+
+export const activateAdmin = createAsyncThunk(
+  "adminConsole/activateAdmin",
+  async (adminId, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/admins/${adminId}/activate`, {
+        method: "PATCH",
+      });
+
+      await Promise.all([dispatch(fetchAdmins()), dispatch(fetchAdminConsole())]);
+      return adminId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to activate admin.");
+    }
+  }
+);
+
 export const fetchAdminUser = createAsyncThunk(
   "adminConsole/fetchAdminUser",
   async (userId, { rejectWithValue }) => {
@@ -172,6 +278,15 @@ const adminConsoleSlice = createSlice({
     activeUser: null,
     activeUserStatus: "idle",
     activeUserError: null,
+    requests: [],
+    requestsStatus: "idle",
+    requestsError: null,
+    requestActionStatus: "idle",
+    admins: [],
+    adminsStatus: "idle",
+    adminsError: null,
+    createAdminStatus: "idle",
+    createAdminError: null,
   },
   reducers: {},
   extraReducers: (builder) => {
@@ -227,6 +342,84 @@ const adminConsoleSlice = createSlice({
         state.activeUser = null;
         state.activeUserStatus = "error";
         state.activeUserError = action.payload || "Unable to load user profile.";
+      })
+      .addCase(fetchAdminRequests.pending, (state) => {
+        state.requestsStatus = "loading";
+        state.requestsError = null;
+      })
+      .addCase(fetchAdminRequests.fulfilled, (state, action) => {
+        state.requests = Array.isArray(action.payload) ? action.payload : [];
+        state.requestsStatus = "ready";
+        state.requestsError = null;
+      })
+      .addCase(fetchAdminRequests.rejected, (state, action) => {
+        state.requestsStatus = "error";
+        state.requestsError = action.payload || "Unable to load access requests.";
+      })
+      .addCase(approveAdminRequest.pending, (state) => {
+        state.requestActionStatus = "loading";
+      })
+      .addCase(approveAdminRequest.fulfilled, (state) => {
+        state.requestActionStatus = "ready";
+      })
+      .addCase(approveAdminRequest.rejected, (state, action) => {
+        state.requestActionStatus = "error";
+        state.requestsError = action.payload || "Unable to approve request.";
+      })
+      .addCase(rejectAdminRequest.pending, (state) => {
+        state.requestActionStatus = "loading";
+      })
+      .addCase(rejectAdminRequest.fulfilled, (state) => {
+        state.requestActionStatus = "ready";
+      })
+      .addCase(rejectAdminRequest.rejected, (state, action) => {
+        state.requestActionStatus = "error";
+        state.requestsError = action.payload || "Unable to reject request.";
+      })
+      .addCase(fetchAdmins.pending, (state) => {
+        state.adminsStatus = "loading";
+        state.adminsError = null;
+      })
+      .addCase(fetchAdmins.fulfilled, (state, action) => {
+        state.admins = Array.isArray(action.payload) ? action.payload : [];
+        state.adminsStatus = "ready";
+        state.adminsError = null;
+      })
+      .addCase(fetchAdmins.rejected, (state, action) => {
+        state.adminsStatus = "error";
+        state.adminsError = action.payload || "Unable to load admin list.";
+      })
+      .addCase(createAdmin.pending, (state) => {
+        state.createAdminStatus = "loading";
+        state.createAdminError = null;
+      })
+      .addCase(createAdmin.fulfilled, (state) => {
+        state.createAdminStatus = "succeeded";
+        state.createAdminError = null;
+      })
+      .addCase(createAdmin.rejected, (state, action) => {
+        state.createAdminStatus = "error";
+        state.createAdminError = action.payload || "Unable to create admin.";
+      })
+      .addCase(suspendAdmin.pending, (state) => {
+        state.adminsStatus = "loading";
+      })
+      .addCase(suspendAdmin.fulfilled, (state) => {
+        state.adminsStatus = "ready";
+      })
+      .addCase(suspendAdmin.rejected, (state, action) => {
+        state.adminsStatus = "error";
+        state.adminsError = action.payload || "Unable to suspend admin.";
+      })
+      .addCase(activateAdmin.pending, (state) => {
+        state.adminsStatus = "loading";
+      })
+      .addCase(activateAdmin.fulfilled, (state) => {
+        state.adminsStatus = "ready";
+      })
+      .addCase(activateAdmin.rejected, (state, action) => {
+        state.adminsStatus = "error";
+        state.adminsError = action.payload || "Unable to activate admin.";
       });
   },
 });

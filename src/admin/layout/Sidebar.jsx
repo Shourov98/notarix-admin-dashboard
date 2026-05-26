@@ -4,6 +4,8 @@ import BrandLogo from "../components/BrandLogo";
 import { primaryNavItems } from "../data/notarixData";
 import { clearAdminSession } from "../../utils/auth";
 import { cn } from "../utils/cn";
+import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppSelector } from "../../store/hooks";
 
 const isSectionActive = (pathname, path) => {
   if (path === "/dashboard") return pathname === "/" || pathname.startsWith("/dashboard");
@@ -13,6 +15,10 @@ const isSectionActive = (pathname, path) => {
 
 const Sidebar = ({ onNavigate }) => {
   const navigate = useNavigate();
+  const { currentAdmin } = useAppSelector(selectAdminConsole);
+  const navItems = primaryNavItems.filter(
+    (item) => !item.superAdminOnly || currentAdmin?.role === "SUPER ADMIN"
+  );
 
   const handleSignOut = () => {
     clearAdminSession();
@@ -27,7 +33,7 @@ const Sidebar = ({ onNavigate }) => {
 
       <nav className="notarix-scrollbar flex-1 overflow-y-auto px-4 py-7">
         <div className="space-y-2">
-          {primaryNavItems.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.label}
               to={item.path}

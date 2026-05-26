@@ -7,6 +7,7 @@ import PasswordChanged from "../Pages/Auth/PasswordChanged/PasswordChanged";
 import PrivateRoute from "./PrivateRoute";
 import AdminLayout from "../admin/layout/AdminLayout";
 import DashboardPage from "../admin/pages/DashboardPage";
+import RequestsManagementPage from "../admin/pages/RequestsManagementPage";
 import UserManagementPage from "../admin/pages/UserManagementPage";
 import UserFormPage from "../admin/pages/UserFormPage";
 import UserProfilePage from "../admin/pages/UserProfilePage";
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
           { index: true, element: <Navigate to="/dashboard" replace /> },
           { path: "dashboard", element: <DashboardPage /> },
           { path: "users", element: <UserManagementPage /> },
+          { path: "requests", element: <RequestsManagementPage /> },
           { path: "users/new", element: <UserFormPage /> },
           { path: "users/client/:id", element: <UserProfilePage type="client" /> },
           { path: "users/client/:id/documents", element: <UserProfilePage type="client" /> },
@@ -52,6 +54,7 @@ export const router = createBrowserRouter([
           { path: "reports", element: <ReportsPage /> },
           { path: "support", element: <SupportPage /> },
           { path: "support/:id", element: <SupportPage detail /> },
+          { path: "admins", element: <SettingsPage section="admins" /> },
           { path: "settings", element: <Navigate to="/settings/profile" replace /> },
           { path: "settings/profile", element: <SettingsPage section="profile" /> },
           { path: "settings/company", element: <SettingsPage section="company" /> },

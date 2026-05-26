@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Bell,
@@ -13,7 +13,6 @@ import {
   Save,
   Shield,
   ShieldCheck,
-  Trash2,
   UserCog,
   UserPlus,
   XCircle,
@@ -30,12 +29,66 @@ import {
   SelectField,
   StatusBadge,
 } from "../components/ui";
-import { adminRows, settingsNavItems } from "../data/notarixData";
+import { settingsNavItems } from "../data/notarixData";
+import {
+  activateAdmin,
+  createAdmin,
+  fetchAdmins,
+  selectAdminConsole,
+  suspendAdmin,
+} from "../../store/adminConsoleSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { toast } from "sonner";
 
 const SettingsShell = ({ title, description, children, actions }) => (
   <div className="grid gap-8 xl:grid-cols-[280px_minmax(0,1fr)]">
     <aside className="space-y-2">
-      {settingsNavItems.map((item) => (
+      <SettingsNav />
+    </aside>
+    <section>
+      <PageHeader title={title} description={description} actions={actions} />
+      {children}
+    </section>
+  </div>
+);
+
+const ADMIN_PERMISSION_OPTIONS = [
+  {
+    key: "manage_orders",
+    label: "Manage Orders",
+    description: "Can create and edit notarization records.",
+  },
+  {
+    key: "manage_payments",
+    label: "Manage Payments",
+    description: "Can review payment activity and transaction records.",
+  },
+  {
+    key: "manage_users",
+    label: "Manage Users",
+    description: "Can create and manage client and notary accounts.",
+  },
+  {
+    key: "access_reports",
+    label: "Access Reports",
+    description: "Full access to analytics and audit trails.",
+  },
+];
+
+const ALL_ADMIN_PERMISSIONS = ADMIN_PERMISSION_OPTIONS.map((item) => item.key);
+
+const SettingsNav = () => {
+  const { currentAdmin } = useAppSelector(selectAdminConsole);
+  const navItems = useMemo(
+    () =>
+      settingsNavItems.filter(
+        (item) =>
+          item.path !== "/settings/admins" || currentAdmin?.role === "SUPER ADMIN"
+      ),
+    [currentAdmin?.role]
+  );
+
+  return navItems.map((item) => (
         <NavLink
           key={item.label}
           to={item.path}
@@ -48,14 +101,8 @@ const SettingsShell = ({ title, description, children, actions }) => (
           <item.icon className="h-5 w-5" />
           {item.label}
         </NavLink>
-      ))}
-    </aside>
-    <section>
-      <PageHeader title={title} description={description} actions={actions} />
-      {children}
-    </section>
-  </div>
-);
+      ));
+};
 
 const CompanySettings = () => (
   <SettingsShell
@@ -218,43 +265,187 @@ const SecuritySettings = () => (
   </SettingsShell>
 );
 
-const AddAdminModal = ({ open, onClose }) => (
-  <Modal
-    open={open}
-    onClose={onClose}
-    title="Add New Admin"
-    icon={UserPlus}
-    footer={<div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button icon={Save} onClick={onClose}>Create Admin</Button></div>}
-  >
-    <div className="space-y-5">
-      <Field label="Full Name" required placeholder="e.g., Jonathan Harker" />
-      <div className="grid gap-5 md:grid-cols-2">
-        <Field label="Email Address" required placeholder="jonathan@notarix.com" />
-        <Field label="Phone Number" placeholder="+1 (555) 000-0000" />
-      </div>
-      <SelectField label="Role Selection" required><option>Select an access role...</option><option>Admin</option><option>Super Admin</option></SelectField>
-      <Card className="bg-slate-50 p-5">
+const AddAdminModal = ({ open, onClose }) => {
+  const dispatch = useAppDispatch();
+  const { createAdminStatus } = useAppSelector(selectAdminConsole);
+  const initialFormState = {
+    name: "",
+    email: "",
+    phone: "",
+    role: "admin",
+    permissions: ["manage_users", "access_reports"],
+  };
+  const [formState, setFormState] = useState(initialFormState);
+
+  const updateField = (field, value) =>
+    setFormState((current) => {
+      if (field === "role") {
+        return {
+          ...current,
+          role: value,
+          permissions:
+            value === "super_admin"
+              ? [...ALL_ADMIN_PERMISSIONS]
+              : current.permissions.filter((permission) =>
+                  ALL_ADMIN_PERMISSIONS.includes(permission)
+                ),
+        };
+      }
+
+      return { ...current, [field]: value };
+    });
+
+  const togglePermission = (permissionKey) =>
+    setFormState((current) => {
+      if (current.role === "super_admin") {
+        return current;
+      }
+
+      const hasPermission = current.permissions.includes(permissionKey);
+      return {
+        ...current,
+        permissions: hasPermission
+          ? current.permissions.filter((item) => item !== permissionKey)
+          : [...current.permissions, permissionKey],
+      };
+    });
+
+  const toggleFullAccess = () =>
+    setFormState((current) => {
+      if (current.role === "super_admin") {
+        return {
+          ...current,
+          role: "admin",
+          permissions: [...ALL_ADMIN_PERMISSIONS],
+        };
+      }
+
+      return {
+        ...current,
+        role: "super_admin",
+        permissions: [...ALL_ADMIN_PERMISSIONS],
+      };
+    });
+
+  const handleSubmit = async () => {
+    if (!formState.name || !formState.email) {
+      toast.error("Name and email are required.");
+      return;
+    }
+
+    if (formState.role === "admin" && formState.permissions.length === 0) {
+      toast.error("Select at least one permission for this admin.");
+      return;
+    }
+
+    const result = await dispatch(
+      createAdmin({
+        name: formState.name,
+        email: formState.email,
+        phone: formState.phone,
+        role: formState.role,
+        permissions: formState.permissions,
+      })
+    );
+
+    if (createAdmin.fulfilled.match(result)) {
+      toast.success("Admin created successfully.", {
+        description: result.payload?.temporaryPassword
+          ? `Temporary password: ${result.payload.temporaryPassword}`
+          : undefined,
+      });
+      setFormState(initialFormState);
+      onClose();
+      return;
+    }
+
+    toast.error(result.payload || "Unable to create admin.");
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Add New Admin"
+      icon={UserPlus}
+      footer={<div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button icon={Save} onClick={handleSubmit} disabled={createAdminStatus === "loading"}>{createAdminStatus === "loading" ? "Creating..." : "Create Admin"}</Button></div>}
+    >
+      <div className="space-y-5">
+        <Field label="Full Name" required placeholder="e.g., Jonathan Harker" value={formState.name} onChange={(event) => updateField("name", event.target.value)} />
         <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Password" required type="password" />
-          <Field label="Confirm Password" required type="password" />
+          <Field label="Email Address" required placeholder="jonathan@notarix.com" value={formState.email} onChange={(event) => updateField("email", event.target.value)} />
+          <Field label="Phone Number" placeholder="+1 (555) 000-0000" value={formState.phone} onChange={(event) => updateField("phone", event.target.value)} />
         </div>
-        <p className="mt-4 text-sm text-slate-600">Password must contain at least 12 characters, including numbers and symbols.</p>
-      </Card>
-      <div>
-        <h3 className="mb-3 text-lg font-bold">Granular Permissions</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          {["Manage Orders", "Manage Payments", "Manage Users", "Access Reports"].map((item) => (
-            <CheckboxLine key={item} label={item} description={item === "Access Reports" ? "Full access to analytics and audit trails." : "Can create and edit notarization records."} />
-          ))}
-          <CheckboxLine checked className="md:col-span-2" label="Full Access (Super Admin)" description="Grants total system control including admin management." />
+        <SelectField label="Role Selection" required value={formState.role} onChange={(event) => updateField("role", event.target.value)}><option value="admin">Admin</option><option value="super_admin">Super Admin</option></SelectField>
+        <Card className="bg-slate-50 p-5">
+          <p className="text-sm text-slate-600">A temporary password will be auto-generated when the admin is created. They must reset it on first login.</p>
+        </Card>
+        <div>
+          <h3 className="mb-3 text-lg font-bold">Granular Permissions</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {ADMIN_PERMISSION_OPTIONS.map((item) => (
+              <CheckboxLine
+                key={item.key}
+                checked={formState.permissions.includes(item.key)}
+                disabled={formState.role === "super_admin"}
+                label={item.label}
+                description={item.description}
+                onChange={() => togglePermission(item.key)}
+              />
+            ))}
+            <CheckboxLine
+              checked={formState.role === "super_admin"}
+              className="md:col-span-2"
+              label="Full Access (Super Admin)"
+              description="Grants total system control including admin management."
+              onChange={toggleFullAccess}
+            />
+          </div>
         </div>
       </div>
-    </div>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 const AdminSettings = () => {
+  const dispatch = useAppDispatch();
   const [open, setOpen] = useState(false);
+  const { currentAdmin, admins, adminsStatus, adminsError } = useAppSelector(selectAdminConsole);
+
+  useEffect(() => {
+    if (currentAdmin?.role === "SUPER ADMIN") {
+      dispatch(fetchAdmins());
+    }
+  }, [currentAdmin?.role, dispatch]);
+
+  const handleToggleStatus = async (admin) => {
+    const action = admin.status === "Suspended" ? activateAdmin : suspendAdmin;
+    const result = await dispatch(action(admin.id));
+
+    if (action.fulfilled.match(result)) {
+      toast.success(
+        admin.status === "Suspended"
+          ? "Admin activated successfully."
+          : "Admin suspended successfully."
+      );
+      return;
+    }
+
+    toast.error(result.payload || "Unable to update admin status.");
+  };
+
+  if (currentAdmin?.role !== "SUPER ADMIN") {
+    return (
+      <SettingsShell
+        title="Admin Management"
+        description="Restricted to super admins."
+      >
+        <Card className="p-8">
+          <p className="text-slate-600">You do not have permission to access Admin Management.</p>
+        </Card>
+      </SettingsShell>
+    );
+  }
 
   return (
     <SettingsShell
@@ -265,24 +456,50 @@ const AdminSettings = () => {
       <Card className="overflow-hidden">
         <table className="min-w-full text-left">
           <thead className="bg-[#f0eefb] text-xs uppercase text-slate-500">
-            <tr><th className="px-6 py-5">Name</th><th className="px-6 py-5">Email</th><th className="px-6 py-5">Role</th><th className="px-6 py-5">Status</th><th className="px-6 py-5">Last Login</th><th className="px-6 py-5">Actions</th></tr>
+            <tr><th className="px-6 py-5">Name</th><th className="px-6 py-5">Email</th><th className="px-6 py-5">Role</th><th className="px-6 py-5">Permissions</th><th className="px-6 py-5">Status</th><th className="px-6 py-5">Last Login</th><th className="px-6 py-5">Actions</th></tr>
           </thead>
           <tbody>
-            {adminRows.map((admin) => (
+            {admins.map((admin) => (
               <tr key={admin.email} className="border-t border-slate-200">
                 <td className="px-6 py-5"><div className="flex items-center gap-3"><Avatar name={admin.name} /><strong>{admin.name}</strong></div></td>
                 <td className="px-6 py-5 text-slate-600">{admin.email}</td>
-                <td className="px-6 py-5"><StatusBadge status={admin.role} /></td>
+                <td className="px-6 py-5"><StatusBadge status={String(admin.role).replaceAll("_", " ")} /></td>
+                <td className="px-6 py-5 text-sm text-slate-600">
+                  {admin.role === "super_admin" || admin.role === "SUPER ADMIN"
+                    ? "Full access"
+                    : admin.permissions?.length
+                      ? admin.permissions.map((permission) => permission.replaceAll("_", " ")).join(", ")
+                      : "No custom permissions"}
+                </td>
                 <td className="px-6 py-5"><StatusBadge status={admin.status} /></td>
-                <td className="px-6 py-5 text-slate-600">{admin.lastLogin}</td>
+                <td className="px-6 py-5 text-slate-600">{admin.lastSignInAt ? new Date(admin.lastSignInAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "Never"}</td>
                 <td className="px-6 py-5">
-                  <div className="flex gap-4 text-slate-600"><Eye className="h-5 w-5" /><Pencil className="h-5 w-5" /><LockKeyhole className="h-5 w-5" /><XCircle className="h-5 w-5" /><Trash2 className="h-5 w-5 text-red-600" /></div>
+                  <div className="flex gap-4 text-slate-600">
+                    <Eye className="h-5 w-5" />
+                    <Pencil className="h-5 w-5" />
+                    <button
+                      type="button"
+                      onClick={() => handleToggleStatus(admin)}
+                      disabled={currentAdmin.id === admin.id}
+                      className={admin.status === "Suspended" ? "text-emerald-600" : "text-red-600"}
+                      title={currentAdmin.id === admin.id ? "You cannot change your own status here." : undefined}
+                    >
+                      {admin.status === "Suspended" ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
+            {admins.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
+                  {adminsStatus === "loading" ? "Loading admins..." : adminsError || "No admins found."}
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
-        <div className="border-t border-slate-200 bg-[#f0eefb] p-5 text-sm text-slate-600">Showing 4 of 12 internal administrators</div>
+        <div className="border-t border-slate-200 bg-[#f0eefb] p-5 text-sm text-slate-600">Showing {admins.length} internal administrators</div>
       </Card>
       <Card className="mt-7 bg-[#e8e6f5] p-7">
         <SectionTitle icon={Info} title="About Admin Roles" />
