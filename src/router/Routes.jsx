@@ -3,6 +3,7 @@ import SignIn from "../Pages/Auth/SignIn/SignIn";
 import ForgatePassword from "../Pages/Auth/ForgatePassword/ForgatePassword";
 import VerifyCode from "../Pages/Auth/VerifyCode/VerifyCode";
 import NewPass from "../Pages/Auth/NewPass/NewPass";
+import PasswordChanged from "../Pages/Auth/PasswordChanged/PasswordChanged";
 import PrivateRoute from "./PrivateRoute";
 import AdminLayout from "../admin/layout/AdminLayout";
 import DashboardPage from "../admin/pages/DashboardPage";
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
   { path: "/forgate-password", element: <ForgatePassword /> },
   { path: "/verify-code", element: <VerifyCode /> },
   { path: "/new-password", element: <NewPass /> },
+  { path: "/password-changed", element: <PasswordChanged /> },
   {
     element: <PrivateRoute />,
     children: [

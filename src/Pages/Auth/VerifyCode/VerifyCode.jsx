@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import AuthCard from "../../../Components/Auth/AuthCard";
 import AuthShell from "../../../Components/Auth/AuthShell";
-import AuthNotice from "../../../Components/Auth/AuthNotice";
 import { resendAdminForgotOtp, verifyAdminForgotOtp } from "../../../services/authApi";
 
 const ADMIN_RESET_EMAIL_KEY = "adminResetEmail";
@@ -11,7 +13,6 @@ const VerifyCode = () => {
   const inputRefs = useRef([]);
   const navigate = useNavigate();
   const location = useLocation();
-  const [notice, setNotice] = useState(location.state?.notice || null);
   const emailFromState = location.state?.email;
   const email = emailFromState || sessionStorage.getItem(ADMIN_RESET_EMAIL_KEY) || "";
 
@@ -21,6 +22,17 @@ const VerifyCode = () => {
       navigate("/forgate-password", { replace: true });
     }
   }, [email, navigate]);
+
+  useEffect(() => {
+    const notice = location.state?.notice;
+    if (!notice?.message) return;
+
+    if (notice.type === "success") {
+      toast.success(notice.message);
+    } else {
+      toast.error(notice.message);
+    }
+  }, [location.state]);
 
   const handleChange = (index, value) => {
     if (value && !/^\d+$/.test(value)) return;
@@ -44,22 +56,16 @@ const VerifyCode = () => {
     e.preventDefault();
 
     if (!email) {
-      setNotice({ type: "error", message: "Missing reset email. Please start again." });
+      toast.error("Missing reset email. Please start again.");
       navigate("/forgate-password", { replace: true });
       return;
     }
 
     try {
       const payload = await resendAdminForgotOtp({ email });
-      setNotice({
-        type: "success",
-        message: payload?.message || "Verification code resent.",
-      });
+      toast.success(payload?.message || "Verification code resent.");
     } catch (error) {
-      setNotice({
-        type: "error",
-        message: error?.message || "Unable to resend verification code.",
-      });
+      toast.error(error?.message || "Unable to resend verification code.");
     }
   };
 
@@ -67,48 +73,37 @@ const VerifyCode = () => {
     e.preventDefault();
     const verificationCode = code.join("");
     if (verificationCode.length < 4) {
-      setNotice({ type: "error", message: "Please enter the 4-digit code." });
+      toast.error("Please enter the 4-digit code.");
       return;
     }
 
     if (!email) {
-      setNotice({ type: "error", message: "Missing reset email. Please start again." });
+      toast.error("Missing reset email. Please start again.");
       navigate("/forgate-password", { replace: true });
       return;
     }
 
     try {
-      const payload = await verifyAdminForgotOtp({ email, otp: verificationCode });
+      await verifyAdminForgotOtp({ email, otp: verificationCode });
       navigate("/new-password", {
         state: {
           email,
           otpVerified: true,
-          notice: {
-            type: "success",
-            message: payload?.message || "Verification successful.",
-          },
         },
       });
     } catch (error) {
-      setNotice({
-        type: "error",
-        message: error?.message || "Verification failed.",
-      });
+      toast.error(error?.message || "Verification failed.");
     }
   };
 
   return (
     <AuthShell compact>
-      <div className="text-white">
-        <h1 className="mb-8 text-4xl font-bold tracking-tight">Verify OTP</h1>
-        <p className="mb-10 max-w-[640px] text-lg leading-8 text-white/85">
-          Please check your email. We have sent a code to {email || "your email address"}.
-        </p>
-
-        <AuthNotice notice={notice} />
-
+      <AuthCard
+        title="Verify Code"
+        description={`We sent an OTP code to your email ${email || ""}. Enter the code below to verify.`}
+      >
         <form onSubmit={handleVerify}>
-          <div className="mb-5 flex flex-wrap justify-center gap-5 md:justify-start">
+          <div className="mb-8 flex flex-wrap justify-center gap-5">
             {[0, 1, 2, 3].map((index) => (
               <input
                 key={index}
@@ -118,7 +113,7 @@ const VerifyCode = () => {
                 value={code[index]}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className="h-20 w-20 rounded-xl border border-white/70 bg-white/10 text-center text-4xl font-semibold text-white focus:border-white focus:ring-2 focus:ring-white/60"
+                className="h-[72px] w-[72px] rounded-[16px] border border-[#b8bcc7] bg-white text-center text-[2rem] font-bold text-[#404247] focus:border-[#ff4d4f] focus:ring-2 focus:ring-[#ffd6d6]"
                 maxLength={1}
                 inputMode="numeric"
                 autoComplete="one-time-code"
@@ -126,25 +121,34 @@ const VerifyCode = () => {
             ))}
           </div>
 
-          <div className="mb-16 flex flex-col gap-3 text-lg md:flex-row md:items-center md:justify-between">
-            <p className="text-white/90">Didn’t receive code?</p>
+          <button
+            type="submit"
+            className="h-14 w-full rounded-[14px] bg-[#4056f4] text-xl font-semibold text-white transition hover:bg-[#3148eb]"
+          >
+            Next
+          </button>
+
+          <div className="mt-6 text-center text-lg text-[#222222]">
+            Don&apos;t receive OTP?{" "}
             <button
               type="button"
               onClick={handleResend}
-              className="w-fit bg-transparent p-0 text-lg font-medium text-white underline underline-offset-4"
+              className="font-medium text-[#e05b43] transition hover:text-[#c84a33]"
             >
-              Resend
+              Resend again
             </button>
           </div>
 
           <button
-            type="submit"
-            className="h-14 w-full rounded-lg bg-white text-xl font-semibold text-[var(--color-brand-primary)] hover:bg-blue-50"
+            type="button"
+            onClick={() => navigate("/sign-in")}
+            className="mt-8 inline-flex w-full items-center justify-center gap-2 text-lg font-medium text-[#111111] transition hover:text-[#4056f4]"
           >
-            Verify OTP
+            <ArrowLeft className="h-5 w-5" />
+            Back to Login
           </button>
         </form>
-      </div>
+      </AuthCard>
     </AuthShell>
   );
 };
