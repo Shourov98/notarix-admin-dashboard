@@ -105,6 +105,125 @@ export const fetchAdminConsole = createAsyncThunk(
   }
 );
 
+export const fetchAdminOrders = createAsyncThunk(
+  "adminConsole/fetchAdminOrders",
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/orders", {
+        query: filters,
+      });
+      return payload?.data || payload || [];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load orders.");
+    }
+  }
+);
+
+export const fetchAdminOrder = createAsyncThunk(
+  "adminConsole/fetchAdminOrder",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}`);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load order details.");
+    }
+  }
+);
+
+export const fetchEligibleNotaries = createAsyncThunk(
+  "adminConsole/fetchEligibleNotaries",
+  async (orderId, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/eligible-notaries`);
+      return payload?.data || payload || [];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load eligible notaries.");
+    }
+  }
+);
+
+export const acceptAdminOrder = createAsyncThunk(
+  "adminConsole/acceptAdminOrder",
+  async (orderId, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/accept`, {
+        method: "PATCH",
+      });
+      const nextOrder = payload?.data || payload;
+      await Promise.all([dispatch(fetchAdminConsole()), dispatch(fetchAdminOrders())]);
+      return nextOrder;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to accept order.");
+    }
+  }
+);
+
+export const rejectAdminOrder = createAsyncThunk(
+  "adminConsole/rejectAdminOrder",
+  async ({ orderId, reason }, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/reject`, {
+        method: "PATCH",
+        body: { reason },
+      });
+      const nextOrder = payload?.data || payload;
+      await Promise.all([dispatch(fetchAdminConsole()), dispatch(fetchAdminOrders())]);
+      return nextOrder;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to reject order.");
+    }
+  }
+);
+
+export const assignAdminOrderNotary = createAsyncThunk(
+  "adminConsole/assignAdminOrderNotary",
+  async (
+    { orderId, notaryId, notaryOfferAmount, payoutReleaseDays, assignmentNotes },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/assign-notary`, {
+        method: "PATCH",
+        body: { notaryId, notaryOfferAmount, payoutReleaseDays, assignmentNotes },
+      });
+      const nextOrder = payload?.data || payload;
+      await Promise.all([
+        dispatch(fetchAdminConsole()),
+        dispatch(fetchAdminOrders()),
+        dispatch(fetchAdminOrder(orderId)),
+      ]);
+      return nextOrder;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to assign notary.");
+    }
+  }
+);
+
+export const reassignAdminOrderNotary = createAsyncThunk(
+  "adminConsole/reassignAdminOrderNotary",
+  async (
+    { orderId, notaryId, notaryOfferAmount, payoutReleaseDays, assignmentNotes },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/reassign-notary`, {
+        method: "PATCH",
+        body: { notaryId, notaryOfferAmount, payoutReleaseDays, assignmentNotes },
+      });
+      const nextOrder = payload?.data || payload;
+      await Promise.all([
+        dispatch(fetchAdminConsole()),
+        dispatch(fetchAdminOrders()),
+        dispatch(fetchAdminOrder(orderId)),
+      ]);
+      return nextOrder;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to reassign notary.");
+    }
+  }
+);
+
 export const createClient = createAsyncThunk(
   "adminConsole/createClient",
   async (clientPayload, { dispatch, rejectWithValue }) => {
@@ -142,13 +261,24 @@ export const createNotary = createAsyncThunk(
   "adminConsole/createNotary",
   async (notaryPayload, { dispatch, rejectWithValue }) => {
     try {
-      const { documentUploads = [], ...createBody } = notaryPayload;
+      const { documentUploads = [], profilePhoto = null, ...createBody } = notaryPayload;
       const payload = await apiRequest("/admin/users/notary", {
         method: "POST",
         body: createBody,
       });
 
       const createdNotary = payload?.data || payload;
+      if (createdNotary?.userId && profilePhoto) {
+        const formData = new FormData();
+        formData.append("profilePhoto", profilePhoto);
+
+        await apiRequest(`/admin/users/${createdNotary.userId}/profile-photo`, {
+          method: "POST",
+          body: formData,
+          contentType: null,
+        });
+      }
+
       if (createdNotary?.userId && documentUploads.length > 0) {
         const formData = new FormData();
         documentUploads.forEach((item) => {
@@ -282,6 +412,16 @@ const adminConsoleSlice = createSlice({
     requestsStatus: "idle",
     requestsError: null,
     requestActionStatus: "idle",
+    ordersStatus: "idle",
+    ordersError: null,
+    activeOrder: null,
+    activeOrderStatus: "idle",
+    activeOrderError: null,
+    eligibleNotaries: [],
+    eligibleNotariesStatus: "idle",
+    eligibleNotariesError: null,
+    orderActionStatus: "idle",
+    orderActionError: null,
     admins: [],
     adminsStatus: "idle",
     adminsError: null,
@@ -356,6 +496,47 @@ const adminConsoleSlice = createSlice({
         state.requestsStatus = "error";
         state.requestsError = action.payload || "Unable to load access requests.";
       })
+      .addCase(fetchAdminOrders.pending, (state) => {
+        state.ordersStatus = "loading";
+        state.ordersError = null;
+      })
+      .addCase(fetchAdminOrders.fulfilled, (state, action) => {
+        state.orders = Array.isArray(action.payload) ? action.payload : [];
+        state.ordersStatus = "ready";
+        state.ordersError = null;
+      })
+      .addCase(fetchAdminOrders.rejected, (state, action) => {
+        state.ordersStatus = "error";
+        state.ordersError = action.payload || "Unable to load orders.";
+      })
+      .addCase(fetchAdminOrder.pending, (state) => {
+        state.activeOrderStatus = "loading";
+        state.activeOrderError = null;
+      })
+      .addCase(fetchAdminOrder.fulfilled, (state, action) => {
+        state.activeOrder = action.payload || null;
+        state.activeOrderStatus = "ready";
+        state.activeOrderError = null;
+      })
+      .addCase(fetchAdminOrder.rejected, (state, action) => {
+        state.activeOrder = null;
+        state.activeOrderStatus = "error";
+        state.activeOrderError = action.payload || "Unable to load order details.";
+      })
+      .addCase(fetchEligibleNotaries.pending, (state) => {
+        state.eligibleNotariesStatus = "loading";
+        state.eligibleNotariesError = null;
+      })
+      .addCase(fetchEligibleNotaries.fulfilled, (state, action) => {
+        state.eligibleNotaries = Array.isArray(action.payload) ? action.payload : [];
+        state.eligibleNotariesStatus = "ready";
+        state.eligibleNotariesError = null;
+      })
+      .addCase(fetchEligibleNotaries.rejected, (state, action) => {
+        state.eligibleNotaries = [];
+        state.eligibleNotariesStatus = "error";
+        state.eligibleNotariesError = action.payload || "Unable to load eligible notaries.";
+      })
       .addCase(approveAdminRequest.pending, (state) => {
         state.requestActionStatus = "loading";
       })
@@ -375,6 +556,58 @@ const adminConsoleSlice = createSlice({
       .addCase(rejectAdminRequest.rejected, (state, action) => {
         state.requestActionStatus = "error";
         state.requestsError = action.payload || "Unable to reject request.";
+      })
+      .addCase(acceptAdminOrder.pending, (state) => {
+        state.orderActionStatus = "loading";
+        state.orderActionError = null;
+      })
+      .addCase(acceptAdminOrder.fulfilled, (state, action) => {
+        state.orderActionStatus = "ready";
+        state.orderActionError = null;
+        state.activeOrder = action.payload || state.activeOrder;
+      })
+      .addCase(acceptAdminOrder.rejected, (state, action) => {
+        state.orderActionStatus = "error";
+        state.orderActionError = action.payload || "Unable to accept order.";
+      })
+      .addCase(rejectAdminOrder.pending, (state) => {
+        state.orderActionStatus = "loading";
+        state.orderActionError = null;
+      })
+      .addCase(rejectAdminOrder.fulfilled, (state, action) => {
+        state.orderActionStatus = "ready";
+        state.orderActionError = null;
+        state.activeOrder = action.payload || state.activeOrder;
+      })
+      .addCase(rejectAdminOrder.rejected, (state, action) => {
+        state.orderActionStatus = "error";
+        state.orderActionError = action.payload || "Unable to reject order.";
+      })
+      .addCase(assignAdminOrderNotary.pending, (state) => {
+        state.orderActionStatus = "loading";
+        state.orderActionError = null;
+      })
+      .addCase(assignAdminOrderNotary.fulfilled, (state, action) => {
+        state.orderActionStatus = "ready";
+        state.orderActionError = null;
+        state.activeOrder = action.payload || state.activeOrder;
+      })
+      .addCase(assignAdminOrderNotary.rejected, (state, action) => {
+        state.orderActionStatus = "error";
+        state.orderActionError = action.payload || "Unable to assign notary.";
+      })
+      .addCase(reassignAdminOrderNotary.pending, (state) => {
+        state.orderActionStatus = "loading";
+        state.orderActionError = null;
+      })
+      .addCase(reassignAdminOrderNotary.fulfilled, (state, action) => {
+        state.orderActionStatus = "ready";
+        state.orderActionError = null;
+        state.activeOrder = action.payload || state.activeOrder;
+      })
+      .addCase(reassignAdminOrderNotary.rejected, (state, action) => {
+        state.orderActionStatus = "error";
+        state.orderActionError = action.payload || "Unable to reassign notary.";
       })
       .addCase(fetchAdmins.pending, (state) => {
         state.adminsStatus = "loading";
