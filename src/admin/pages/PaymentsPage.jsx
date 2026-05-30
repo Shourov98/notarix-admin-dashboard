@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   CreditCard,
   Download,
-  Eye,
-  MoreVertical,
   Search,
+  Upload,
   WalletCards,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Button,
   Card,
@@ -15,84 +15,274 @@ import {
   MetricCard,
   Modal,
   PageHeader,
-  Pagination,
   StatusBadge,
   TextArea,
 } from "../components/ui";
-import { selectAdminConsole } from "../../store/adminConsoleSlice";
-import { useAppSelector } from "../../store/hooks";
+import { apiRequest, buildApiUrl } from "../../services/httpClient";
 
-const MarkPaidModal = ({ open, onClose }) => (
-  <Modal
-    open={open}
-    onClose={onClose}
-    title="Mark Payment as Paid"
-    subtitle="Confirm and record this payment in the ledger"
-    footer={<div className="flex justify-end gap-3"><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={onClose}>Confirm Payment</Button></div>}
-  >
-    <div className="mb-6 rounded-lg border border-[var(--color-border)] bg-[#f2f0ff] p-5">
-      <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr]">
-        <div><p className="text-xs font-bold uppercase text-slate-500">Order ID</p><p className="font-bold">#NTX-90124</p><p className="text-xs font-bold uppercase text-slate-500">Client</p><p>Sarah Jenkins</p></div>
-        <div><p className="text-xs font-bold uppercase text-slate-500">Payment ID</p><p className="font-bold">#PAY-9920</p><p className="text-xs font-bold uppercase text-slate-500">Notary</p><p>Robert Vance</p></div>
-        <div className="text-right"><StatusBadge status="Pending" /><p className="mt-3 text-4xl font-extrabold text-[var(--color-brand-primary)]">$150.00</p></div>
+const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`;
+
+const statusOptionsByTarget = {
+  client: ["Pending", "Received", "Failed"],
+  notary: ["Pending", "Scheduled", "Paid", "Failed"],
+};
+
+const PaymentActionModal = ({
+  open,
+  onClose,
+  payment,
+  onSubmit,
+  submitting,
+}) => {
+  const [status, setStatus] = useState("Pending");
+  const [method, setMethod] = useState("");
+  const [paidDate, setPaidDate] = useState("");
+  const [transactionReference, setTransactionReference] = useState("");
+  const [notes, setNotes] = useState("");
+  const [proof, setProof] = useState(null);
+
+  useEffect(() => {
+    if (!payment) return;
+    setStatus(payment.status || "Pending");
+    setMethod(payment.method === "Not set" ? "" : payment.method || "");
+    setPaidDate("");
+    setTransactionReference(payment.reference || "");
+    setNotes("");
+    setProof(null);
+  }, [payment]);
+
+  if (!payment) return null;
+
+  const label =
+    payment.target === "client" ? "Update Client Payment" : "Update Notary Payout";
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={label}
+      subtitle="Record the latest manual payment state and supporting proof."
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            onClick={() =>
+              onSubmit({
+                target: payment.target,
+                status,
+                method,
+                paidDate,
+                transactionReference,
+                notes,
+                proof,
+              })
+            }
+            disabled={submitting}
+          >
+            {submitting ? "Saving..." : "Save Update"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="mb-6 rounded-lg border border-[var(--color-border)] bg-[#f2f0ff] p-5">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-slate-500">Order</p>
+            <p className="font-bold">{payment.orderId}</p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase text-slate-500">Counterparty</p>
+            <p>{payment.counterpartyName}</p>
+          </div>
+          <div className="text-right">
+            <StatusBadge status={payment.direction} />
+            <p className="mt-3 text-4xl font-extrabold text-[var(--color-brand-primary)]">
+              {payment.amountLabel}
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
-    <div className="grid gap-5 md:grid-cols-2">
-      <label>
-        <span className="mb-2 block text-sm font-bold uppercase text-slate-600">Payment Method</span>
-        <select className="h-11 w-full"><option>Card</option><option>ACH</option></select>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <label>
+          <span className="mb-2 block text-sm font-bold uppercase text-slate-600">Status</span>
+          <select
+            className="h-11 w-full"
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            {statusOptionsByTarget[payment.target].map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
+        <Field
+          label="Payment Method"
+          value={method}
+          onChange={(event) => setMethod(event.target.value)}
+          placeholder="Bank Transfer / ACH / Card"
+        />
+        <Field
+          label="Transaction ID / Ref"
+          value={transactionReference}
+          onChange={(event) => setTransactionReference(event.target.value)}
+          placeholder="e.g. TXN-88210"
+        />
+        <Field
+          label="Effective Date"
+          type="date"
+          value={paidDate}
+          onChange={(event) => setPaidDate(event.target.value)}
+        />
+        <TextArea
+          label="Notes"
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+          placeholder="Add internal notes for this payment update..."
+          className="md:col-span-2"
+        />
+      </div>
+
+      <label className="mt-6 block rounded-lg border border-dashed border-[var(--color-border)] bg-[#fbf8ff] p-8 text-center">
+        <Upload className="mx-auto h-8 w-8 text-slate-500" />
+        <p className="mt-3 font-bold">Upload transfer proof</p>
+        <p className="text-slate-600">PDF, JPG, or PNG</p>
+        <input
+          type="file"
+          className="hidden"
+          onChange={(event) => setProof(event.target.files?.[0] || null)}
+        />
+        {proof ? <p className="mt-3 text-sm text-slate-500">{proof.name}</p> : null}
       </label>
-      <Field label="Transaction ID / Ref" placeholder="e.g. TXN-88210" />
-      <Field label="Payment Date" type="date" defaultValue="2023-10-27" className="md:col-span-2" />
-      <TextArea label="Notes" placeholder="Add any internal payment notes..." className="md:col-span-2" />
-    </div>
-    <div className="mt-6 rounded-lg border border-dashed border-[var(--color-border)] bg-[#fbf8ff] p-8 text-center">
-      <Download className="mx-auto h-8 w-8 text-slate-500" />
-      <p className="mt-3 font-bold">Upload receipt or proof</p>
-      <p className="text-slate-600">PDF, JPG, or PNG (Max 5MB)</p>
-    </div>
-    <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 text-[var(--color-brand-primary)]">
-      You are about to mark this payment as <strong>PAID</strong>. This action will update financial records and notify the client.
-    </div>
-  </Modal>
-);
+    </Modal>
+  );
+};
 
 const PaymentsPage = () => {
-  const [paidOpen, setPaidOpen] = useState(false);
-  const { payments } = useAppSelector(selectAdminConsole);
+  const [summary, setSummary] = useState(null);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [type, setType] = useState("");
+  const [status, setStatus] = useState("");
+  const [activePayment, setActivePayment] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadPayments = useCallback(async (nextFilters = {}) => {
+    setLoading(true);
+    try {
+      const payload = await apiRequest("/admin/payments", {
+        query: {
+          search: nextFilters.search ?? search,
+          type: nextFilters.type ?? type,
+          status: nextFilters.status ?? status,
+        },
+      });
+
+      const data = payload?.data || payload || {};
+      setSummary(data.summary || null);
+      setPayments(data.payments || []);
+    } catch (error) {
+      toast.error(error?.message || "Unable to load payments.");
+    } finally {
+      setLoading(false);
+    }
+  }, [search, type, status]);
+
+  useEffect(() => {
+    loadPayments({ search: "", type: "", status: "" });
+  }, [loadPayments]);
+
+  const filteredPayments = useMemo(() => payments, [payments]);
+
+  const handleSubmit = async (formValues) => {
+    if (!activePayment) return;
+
+    setSubmitting(true);
+    try {
+      await apiRequest(`/admin/orders/${activePayment.rawOrderId}/payment-status`, {
+        method: "PATCH",
+        body: {
+          target: formValues.target,
+          status: formValues.status,
+          method: formValues.method,
+          paidDate: formValues.paidDate,
+          transactionReference: formValues.transactionReference,
+          notes: formValues.notes,
+        },
+      });
+
+      if (formValues.proof) {
+        const formData = new FormData();
+        formData.append("target", formValues.target);
+        formData.append("proof", formValues.proof);
+        await apiRequest(`/admin/orders/${activePayment.rawOrderId}/payment-proof`, {
+          method: "POST",
+          body: formData,
+          contentType: null,
+        });
+      }
+
+      toast.success("Payment record updated.");
+      setActivePayment(null);
+      await loadPayments();
+    } catch (error) {
+      toast.error(error?.message || "Unable to update payment.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const metrics = summary || {
+    totalClientRevenue: 0,
+    totalNotaryPayouts: 0,
+    pendingInbound: 0,
+    totalCompanyRevenue: 0,
+  };
 
   return (
     <div>
       <PageHeader
         title="Payments"
-        description="Manage transactions, client payments, and notary payouts"
+        description="Manage manual client receipts, notary payouts, and supporting proof."
         actions={
-          <>
-            <Button variant="subtle" icon={Download} size="lg">Export</Button>
-            <Button icon={CreditCard} size="lg">Record Payment</Button>
-          </>
+          <Button variant="subtle" icon={Download} size="lg">Export</Button>
         }
       />
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total Revenue" value="$124,592.00" change="+12.5%" icon={WalletCards} />
-        <MetricCard label="Paid To Notaries" value="$45,210.00" icon={CreditCard} />
-        <MetricCard label="Pending Payments" value="$8,125.00" icon={CreditCard} tone="danger" />
-        <MetricCard label="Completed" value="1,429" change="98% Success" icon={CheckCircle2} />
+        <MetricCard label="Client Revenue" value={formatCurrency(metrics.totalClientRevenue)} icon={WalletCards} />
+        <MetricCard label="Notary Payouts" value={formatCurrency(metrics.totalNotaryPayouts)} icon={CreditCard} />
+        <MetricCard label="Pending Inbound" value={formatCurrency(metrics.pendingInbound)} icon={CreditCard} tone="danger" />
+        <MetricCard label="Company Revenue" value={formatCurrency(metrics.totalCompanyRevenue)} icon={CheckCircle2} />
       </div>
 
       <Card className="mt-8 overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-[var(--color-border)] p-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative max-w-xl flex-1">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <input className="h-12 w-full bg-[#f0eefb] pl-11" placeholder="Search by Order ID, Client, or Notary..." />
+            <input
+              className="h-12 w-full bg-[#f0eefb] pl-11"
+              placeholder="Search by order, client, or notary..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            {["All Payments", "Inbound", "Outbound"].map((item) => (
-              <button key={item} type="button" className={`h-10 rounded-full px-4 text-sm font-bold ${item === "All Payments" ? "bg-[var(--color-brand-primary)] text-white" : "bg-[#eeecfb] text-slate-600"}`}>{item}</button>
-            ))}
-            <select className="h-12"><option>Payment Method</option></select>
-            <select className="h-12"><option>Status</option></select>
+            <select className="h-12" value={type} onChange={(event) => setType(event.target.value)}>
+              <option value="">All Directions</option>
+              <option value="Inbound">Inbound</option>
+              <option value="Outbound">Outbound</option>
+            </select>
+            <select className="h-12" value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Received">Received</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Paid">Paid</option>
+              <option value="Failed">Failed</option>
+            </select>
+            <Button variant="secondary" onClick={() => loadPayments()}>Apply</Button>
           </div>
         </div>
 
@@ -100,50 +290,74 @@ const PaymentsPage = () => {
           <table className="min-w-full text-left">
             <thead className="bg-[#f0eefb] text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-6 py-5"><input type="checkbox" className="h-4 w-4 p-0" /></th>
                 <th className="px-6 py-5">Payment ID</th>
-                <th className="px-6 py-5">Order & Client</th>
-                <th className="px-6 py-5">Type</th>
+                <th className="px-6 py-5">Order</th>
+                <th className="px-6 py-5">Counterparty</th>
+                <th className="px-6 py-5">Direction</th>
                 <th className="px-6 py-5">Amount</th>
                 <th className="px-6 py-5">Status</th>
+                <th className="px-6 py-5">Method</th>
                 <th className="px-6 py-5">Date</th>
+                <th className="px-6 py-5">Proof</th>
                 <th className="px-6 py-5">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => (
+              {filteredPayments.map((payment) => (
                 <tr key={payment.id} className="border-t border-slate-200">
-                  <td className="px-6 py-6"><input type="checkbox" defaultChecked={payment.selected} className="h-4 w-4 p-0" /></td>
-                  <td className="px-6 py-6"><p className="font-bold">{payment.id}</p><p className="text-sm text-slate-500">{payment.reference}</p></td>
-                  <td className="px-6 py-6"><p className="font-bold">{payment.client}</p><p className="text-sm text-slate-500">{payment.note}</p></td>
-                  <td className="px-6 py-6"><StatusBadge status={payment.type} /></td>
-                  <td className="px-6 py-6 font-bold">{payment.amount}</td>
-                  <td className="px-6 py-6"><StatusBadge status={payment.status} /></td>
-                  <td className="px-6 py-6 text-slate-600">{payment.date}</td>
                   <td className="px-6 py-6">
-                    {payment.status === "Pending" ? (
-                      <div className="flex items-center gap-3">
-                        <Button size="sm" onClick={() => setPaidOpen(true)}>Mark as Paid</Button>
-                        <MoreVertical className="h-5 w-5 text-slate-500" />
-                      </div>
-                    ) : payment.status === "Failed" ? (
-                      <button type="button" className="font-bold text-red-600">Retry Charge</button>
+                    <p className="font-bold">{payment.paymentId}</p>
+                    <p className="text-sm text-slate-500">{payment.description}</p>
+                  </td>
+                  <td className="px-6 py-6 font-bold">{payment.orderId}</td>
+                  <td className="px-6 py-6">
+                    <p className="font-bold">{payment.counterpartyName}</p>
+                    <p className="text-sm text-slate-500">{payment.counterpartyEmail || "No email"}</p>
+                  </td>
+                  <td className="px-6 py-6"><StatusBadge status={payment.direction} /></td>
+                  <td className="px-6 py-6 font-bold">{payment.amountLabel}</td>
+                  <td className="px-6 py-6"><StatusBadge status={payment.status} /></td>
+                  <td className="px-6 py-6 text-slate-600">{payment.method}</td>
+                  <td className="px-6 py-6 text-slate-600">{payment.dateLabel}</td>
+                  <td className="px-6 py-6 text-sm">
+                    {payment.proof?.url ? (
+                      <a
+                        href={buildApiUrl(payment.proof.url, { skipPrefix: true })}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[var(--color-brand-primary)] hover:underline"
+                      >
+                        View
+                      </a>
                     ) : (
-                      <div className="flex gap-5 text-slate-600"><Eye className="h-5 w-5" /><Download className="h-5 w-5" /></div>
+                      <span className="text-slate-400">Missing</span>
                     )}
+                  </td>
+                  <td className="px-6 py-6">
+                    <Button size="sm" onClick={() => setActivePayment(payment)}>
+                      {payment.target === "client" ? "Mark Received" : "Mark Paid"}
+                    </Button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <div className="flex flex-col gap-4 border-t border-slate-100 bg-[#f0eefb] px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-600">Showing <strong>1 to 10</strong> of 1,249 transactions</p>
-          <Pagination />
-        </div>
+
+        {loading ? (
+          <p className="px-6 py-5 text-sm text-slate-500">Loading payments...</p>
+        ) : filteredPayments.length === 0 ? (
+          <p className="px-6 py-5 text-sm text-slate-500">No payment records found.</p>
+        ) : null}
       </Card>
 
-      <MarkPaidModal open={paidOpen} onClose={() => setPaidOpen(false)} />
+      <PaymentActionModal
+        open={Boolean(activePayment)}
+        onClose={() => setActivePayment(null)}
+        payment={activePayment}
+        onSubmit={handleSubmit}
+        submitting={submitting}
+      />
     </div>
   );
 };

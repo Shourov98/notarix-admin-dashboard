@@ -1,27 +1,19 @@
-import { ShieldCheck } from "lucide-react";
-
 const AuthShell = ({ children, compact = false }) => {
   return (
-    <div className="min-h-screen bg-[#f8f7ff] px-4 py-10 md:px-6 md:py-16">
-      <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-5xl items-center justify-center">
-        <div className="w-full max-w-[940px] overflow-hidden rounded-[28px] bg-[#2048e6] px-7 py-10 shadow-[0_28px_60px_rgba(32,72,230,0.22)] md:px-16 md:py-14">
-          <div
-            className={`mx-auto flex w-full flex-col text-white ${
-              compact ? "max-w-[652px]" : "max-w-[760px]"
-            }`}
-          >
-            <div className="mb-10 flex justify-center md:mb-12">
-              <div className="flex items-center gap-3">
-                <span className="grid h-14 w-14 place-items-center rounded-xl border border-[#f2cf6a] bg-[#14253d] text-[#f2cf6a]">
-                  <ShieldCheck className="h-9 w-9" />
-                </span>
-                <span className="text-3xl font-extrabold">
-                  Notarix<sup className="text-sm">TM</sup>
-                </span>
-              </div>
-            </div>
-            {children}
-          </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#f7f7fb] px-4 py-10 md:px-6 md:py-16">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-[-8%] top-[8%] h-64 w-64 rounded-full bg-[#d9e4ff] opacity-50 blur-3xl" />
+        <div className="absolute bottom-[8%] right-[-6%] h-72 w-72 rounded-full bg-[#ece7ff] opacity-60 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#ffffff_0%,#f7f7fb_52%,#eef2fb_100%)]" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] max-w-6xl items-center justify-center">
+        <div
+          className={`w-full overflow-hidden rounded-[22px] border border-[#d7dae4] bg-white/95 px-4 py-8 shadow-[0_20px_60px_rgba(37,69,88,0.10)] backdrop-blur md:px-10 md:py-10 ${
+            compact ? "max-w-[660px]" : "max-w-[760px]"
+          }`}
+        >
+          {children}
         </div>
       </div>
     </div>

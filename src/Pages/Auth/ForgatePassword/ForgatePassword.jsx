@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Mail } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import AuthCard from "../../../Components/Auth/AuthCard";
+import AuthField from "../../../Components/Auth/AuthField";
 import AuthShell from "../../../Components/Auth/AuthShell";
-import AuthNotice from "../../../Components/Auth/AuthNotice";
 import { forgotAdminPassword } from "../../../services/authApi";
 
 const ADMIN_RESET_EMAIL_KEY = "adminResetEmail";
@@ -17,7 +20,7 @@ const ForgatePassword = () => {
     const email = String(formData.get("email") || "").trim().toLowerCase();
 
     if (!email) {
-      setNotice({ type: "error", message: "Please enter your email address." });
+      toast.error("Please enter your email address.");
       return;
     }
 
@@ -27,20 +30,15 @@ const ForgatePassword = () => {
     try {
       const payload = await forgotAdminPassword({ email });
       sessionStorage.setItem(ADMIN_RESET_EMAIL_KEY, email);
+      toast.success(payload?.message || "Verification code sent to your email.");
       navigate("/verify-code", {
         state: {
           email,
-          notice: {
-            type: "success",
-            message: payload?.message || "Verification code sent to your email.",
-          },
         },
       });
     } catch (error) {
-      setNotice({
-        type: "error",
-        message: error?.message || "Unable to send verification code.",
-      });
+      setNotice(error?.message || "Unable to send verification code.");
+      toast.error(error?.message || "Unable to send verification code.");
     } finally {
       setLoading(false);
     }
@@ -48,35 +46,38 @@ const ForgatePassword = () => {
 
   return (
     <AuthShell compact>
-      <div className="text-white">
-        <h1 className="mb-6 text-4xl font-bold tracking-tight">Forget Password</h1>
-        <p className="mb-8 max-w-[640px] text-lg leading-8 text-white/85">
-          Enter your email address to get a verification code for resetting your
-          password.
-        </p>
-
-        <AuthNotice notice={notice} />
-
+      <AuthCard title="Forgot Password" description="Enter your email to reset password">
         <form onSubmit={onSubmit}>
-          <label className="mb-14 block">
-            <input
-              name="email"
-              type="email"
-              required
-              autoComplete="email"
-              className="h-16 rounded-xl border-0 bg-white px-5 text-lg text-slate-900 shadow-none"
-            />
-          </label>
+          <AuthField
+            label="Email"
+            name="email"
+            type="email"
+            icon={Mail}
+            autoComplete="email"
+            placeholder="Enter email"
+            required
+            className="mb-6"
+          />
+
+          {notice ? <p className="mb-6 text-sm text-[#c84a33]">{notice}</p> : null}
 
           <button
             type="submit"
-            className="h-14 w-full rounded-lg bg-white text-xl font-semibold text-[var(--color-brand-primary)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
+            className="h-14 w-full rounded-[14px] bg-[#4056f4] text-xl font-semibold text-white transition hover:bg-[#3148eb] disabled:cursor-not-allowed disabled:opacity-70"
             disabled={loading}
           >
-            {loading ? "Sending..." : "Send Code"}
+            {loading ? "Sending..." : "Next"}
           </button>
+
+          <Link
+            to="/sign-in"
+            className="mt-8 inline-flex w-full items-center justify-center gap-2 text-lg font-medium text-[#111111] transition hover:text-[#4056f4]"
+          >
+            <ArrowLeft className="h-5 w-5" />
+            Back to Login
+          </Link>
         </form>
-      </div>
+      </AuthCard>
     </AuthShell>
   );
 };

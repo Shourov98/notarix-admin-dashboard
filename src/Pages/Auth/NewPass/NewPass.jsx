@@ -1,8 +1,10 @@
 import { Eye, EyeOff } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import AuthCard from "../../../Components/Auth/AuthCard";
+import AuthField from "../../../Components/Auth/AuthField";
 import AuthShell from "../../../Components/Auth/AuthShell";
-import AuthNotice from "../../../Components/Auth/AuthNotice";
 import { resetAdminPassword } from "../../../services/authApi";
 
 const ADMIN_RESET_EMAIL_KEY = "adminResetEmail";
@@ -13,7 +15,6 @@ const NewPass = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState(location.state?.notice || null);
   const email = location.state?.email || sessionStorage.getItem(ADMIN_RESET_EMAIL_KEY) || "";
   const otpVerified = Boolean(location.state?.otpVerified);
 
@@ -22,6 +23,17 @@ const NewPass = () => {
       navigate("/forgate-password", { replace: true });
     }
   }, [email, navigate]);
+
+  useEffect(() => {
+    const notice = location.state?.notice;
+    if (!notice?.message) return;
+
+    if (notice.type === "success") {
+      toast.success(notice.message);
+    } else {
+      toast.error(notice.message);
+    }
+  }, [location.state]);
 
   const togglePasswordVisibility = () => {
     setShowPassword((current) => !current);
@@ -38,23 +50,22 @@ const NewPass = () => {
     const confirmPassword = String(formData.get("confirmPassword") || "");
 
     if (newPassword !== confirmPassword) {
-      setNotice({ type: "error", message: "Passwords do not match." });
+      toast.error("Passwords do not match.");
       return;
     }
 
     if (newPassword.length < 8) {
-      setNotice({ type: "error", message: "Password must be at least 8 characters." });
+      toast.error("Password must be at least 8 characters.");
       return;
     }
 
     if (!otpVerified) {
-      setNotice({ type: "error", message: "OTP verification is required before continuing." });
+      toast.error("OTP verification is required before continuing.");
       navigate("/verify-code", { state: { email } });
       return;
     }
 
     setLoading(true);
-    setNotice(null);
 
     try {
       const payload = await resetAdminPassword({
@@ -63,20 +74,12 @@ const NewPass = () => {
       });
 
       sessionStorage.removeItem(ADMIN_RESET_EMAIL_KEY);
-      navigate("/sign-in", {
+      toast.success(payload?.message || "Password has been reset successfully.");
+      navigate("/password-changed", {
         replace: true,
-        state: {
-          notice: {
-            type: "success",
-            message: payload?.message || "Password has been reset successfully.",
-          },
-        },
       });
     } catch (error) {
-      setNotice({
-        type: "error",
-        message: error?.message || "Unable to reset password. Please try again.",
-      });
+      toast.error(error?.message || "Unable to reset password. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -84,66 +87,57 @@ const NewPass = () => {
 
   return (
     <AuthShell compact>
-      <form onSubmit={onSubmit} className="w-full">
-        <div className="mb-8">
-          <h2 className="mb-3 text-4xl font-bold tracking-tight text-white">
-            Create New Password
-          </h2>
-          <p className="text-lg text-white/85">
-            Set a new password for {email || "your account"}.
-          </p>
-        </div>
+      <AuthCard title="Set new password" description="Set a new password and continue your journey">
+        <form onSubmit={onSubmit} className="w-full">
+          <AuthField
+            label="Set Password"
+            name="newPassword"
+            type={showPassword ? "text" : "password"}
+            required
+            minLength={8}
+            placeholder="Type a strong password"
+            className="mb-7"
+            trailing={
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className="text-[#42444c]"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            }
+          />
 
-        <AuthNotice notice={notice} />
+          <AuthField
+            label="Confirm password"
+            name="confirmPassword"
+            type={showConfirmPassword ? "text" : "password"}
+            required
+            minLength={8}
+            placeholder="Re-type password"
+            className="mb-6"
+            trailing={
+              <button
+                type="button"
+                onClick={toggleConfirmPasswordVisibility}
+                className="text-[#42444c]"
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            }
+          />
 
-        <label className="mb-7 block">
-          <span className="mb-2 block text-[18px] font-semibold text-white">New Password</span>
-          <div className="relative flex items-center">
-            <input
-              name="newPassword"
-              type={showPassword ? "text" : "password"}
-              required
-              minLength={8}
-              className="h-16 rounded-xl border-0 bg-white px-5 pr-14 text-lg text-slate-900 shadow-none"
-            />
-            <button
-              type="button"
-              onClick={togglePasswordVisibility}
-              className="absolute right-4 text-lg text-slate-500"
-            >
-              {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-        </label>
-
-        <label className="mb-10 block">
-          <span className="mb-2 block text-[18px] font-semibold text-white">Confirm Password</span>
-          <div className="relative flex items-center">
-            <input
-              name="confirmPassword"
-              type={showConfirmPassword ? "text" : "password"}
-              required
-              minLength={8}
-              className="h-16 rounded-xl border-0 bg-white px-5 pr-14 text-lg text-slate-900 shadow-none"
-            />
-            <button
-              type="button"
-              onClick={toggleConfirmPasswordVisibility}
-              className="absolute right-4 text-lg text-slate-500"
-            >
-              {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-            </button>
-          </div>
-        </label>
-
-        <button
-          className="h-14 w-full rounded-lg bg-white text-xl font-semibold text-[var(--color-brand-primary)] hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
-          type="submit"
-          disabled={loading}
-        >
-          {loading ? "Resetting..." : "Update Password"}
-        </button>
-      </form>
+          <button
+            className="h-14 w-full rounded-[14px] bg-[#4056f4] text-xl font-semibold text-white transition hover:bg-[#3148eb] disabled:cursor-not-allowed disabled:opacity-70"
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? "Saving..." : "Continue"}
+          </button>
+        </form>
+      </AuthCard>
     </AuthShell>
   );
 };
