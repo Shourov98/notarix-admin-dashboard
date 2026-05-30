@@ -192,6 +192,7 @@ const NotaryOverview = ({ notary }) => (
           <Avatar
             name={notary?.name || "Sarah Jenkins"}
             size="lg"
+            src={notary?.avatar || undefined}
             tone={notary?.avatarTone || "bg-rose-100 text-rose-700"}
           />
           <div>
@@ -458,6 +459,7 @@ const UserProfilePage = ({ type = "client" }) => {
               <Avatar
                 name={client?.name || "Michael Chen"}
                 size="lg"
+                src={client?.avatar || undefined}
                 tone={client?.avatarTone || "bg-slate-200 text-slate-700"}
               />
               <div>

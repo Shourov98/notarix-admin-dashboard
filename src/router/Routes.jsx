@@ -18,6 +18,7 @@ import DocumentsPage from "../admin/pages/DocumentsPage";
 import PaymentsPage from "../admin/pages/PaymentsPage";
 import MessagesPage from "../admin/pages/MessagesPage";
 import ReportsPage from "../admin/pages/ReportsPage";
+import AuditLogsPage from "../admin/pages/AuditLogsPage";
 import SettingsPage from "../admin/pages/SettingsPage";
 import SupportPage from "../admin/pages/SupportPage";
 
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
           { path: "payments", element: <PaymentsPage /> },
           { path: "messages", element: <MessagesPage /> },
           { path: "reports", element: <ReportsPage /> },
+          { path: "audit-logs", element: <AuditLogsPage /> },
           { path: "support", element: <SupportPage /> },
           { path: "support/:id", element: <SupportPage detail /> },
           { path: "admins", element: <SettingsPage section="admins" /> },

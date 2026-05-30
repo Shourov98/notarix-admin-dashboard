@@ -113,6 +113,7 @@ const UserFormPage = () => {
       file: null,
     }))
   );
+  const [profilePhoto, setProfilePhoto] = useState(null);
 
   const updateSection = (section, field, value) => {
     setFormState((current) => ({
@@ -153,6 +154,7 @@ const UserFormPage = () => {
             commission: formState.commission,
             passwordResetRequired: formState.requirePasswordReset,
             ronEligible: formState.ronEligible,
+            profilePhoto,
             requiredDocuments: notaryDocumentsState.map((document) => ({
               title: document.title,
               status: document.file ? "Pending" : "Missing",
@@ -430,12 +432,24 @@ const UserFormPage = () => {
                   />
                   <div>
                     <span className="mb-2 block text-sm font-semibold text-slate-700">Profile Photo</span>
-                    <button type="button" className="flex h-11 items-center gap-3 rounded-lg text-[var(--color-brand-primary)]">
+                    <input
+                      id="notary-profile-photo"
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      className="hidden"
+                      onChange={(event) => setProfilePhoto(event.target.files?.[0] || null)}
+                    />
+                    <label
+                      htmlFor="notary-profile-photo"
+                      className="flex h-11 cursor-pointer items-center gap-3 rounded-lg text-[var(--color-brand-primary)]"
+                    >
                       <span className="grid h-11 w-11 place-items-center rounded-full bg-slate-200 text-slate-500">
                         <Camera className="h-5 w-5" />
                       </span>
-                      <span className="font-semibold">Upload photo</span>
-                    </button>
+                      <span className="font-semibold">
+                        {profilePhoto ? profilePhoto.name : "Upload photo"}
+                      </span>
+                    </label>
                   </div>
                 </div>
               </Card>
@@ -594,25 +608,23 @@ const UserFormPage = () => {
                         }
                       />
                     </div>
-                    <label className="block">
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(event) =>
-                          (isClient
-                            ? handleClientDocumentChange(title, event.target.files?.[0] || null)
-                            : handleNotaryDocumentChange(title, event.target.files?.[0] || null))
-                        }
-                      />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          icon={FolderUp}
-                        className="w-full text-[var(--color-brand-primary)]"
-                      >
-                        {selectedDocument?.file ? selectedDocument.file.name : "Upload"}
-                      </Button>
+                    <input
+                      id={`${type}-${selectedDocument?.id || title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`}
+                      type="file"
+                      accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                      className="hidden"
+                      onChange={(event) =>
+                        (isClient
+                          ? handleClientDocumentChange(title, event.target.files?.[0] || null)
+                          : handleNotaryDocumentChange(title, event.target.files?.[0] || null))
+                      }
+                    />
+                    <label
+                      htmlFor={`${type}-${selectedDocument?.id || title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`}
+                      className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm font-semibold text-[var(--color-brand-primary)] hover:bg-slate-50"
+                    >
+                      <FolderUp className="h-4 w-4" />
+                      <span>{selectedDocument?.file ? selectedDocument.file.name : "Upload"}</span>
                     </label>
                   </div>
                 );
