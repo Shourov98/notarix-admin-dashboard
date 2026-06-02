@@ -15,31 +15,53 @@ import {
 import { apiRequest } from "../services/httpClient";
 import { isAdminAuthenticated } from "../utils/auth";
 
-const mergeBy = (fallbackItems, liveItems, key) => {
-  if (!Array.isArray(liveItems) || liveItems.length === 0) {
-    return fallbackItems;
-  }
+const preferLiveCollection = (fallbackItems, liveItems) =>
+  Array.isArray(liveItems) && liveItems.length > 0 ? liveItems : fallbackItems;
 
-  return fallbackItems.map((fallbackItem) => {
-    const liveMatch = liveItems.find((item) => item[key] === fallbackItem[key]);
-    return liveMatch ? { ...fallbackItem, ...liveMatch } : fallbackItem;
-  });
+const emptyPagination = {
+  page: 1,
+  pageSize: 10,
+  totalItems: 0,
+  totalPages: 1,
+  hasPreviousPage: false,
+  hasNextPage: false,
+};
+
+const extractPaginatedResult = (payload) => {
+  const data = payload?.data || payload || {};
+  return {
+    items:
+      data.items ||
+      data.payments ||
+      [],
+    pagination: data.pagination || emptyPagination,
+    summary: data.summary || null,
+  };
 };
 
 const normalizeConsoleData = (payload) => ({
-  currentAdmin: { ...fallbackCurrentAdmin, ...(payload?.currentAdmin || {}) },
-  dashboardStats: mergeBy(fallbackDashboardStats, payload?.dashboardStats, "label"),
-  recentOrders: mergeBy(fallbackRecentOrders, payload?.recentOrders, "id"),
-  users: payload?.users?.length ? payload.users : fallbackUsers,
-  orders: payload?.orders?.length ? payload.orders : fallbackOrders,
-  notaries: payload?.notaries?.length ? payload.notaries : fallbackNotaries,
-  documents: payload?.documents?.length ? payload.documents : fallbackDocuments,
-  payments: payload?.payments?.length ? payload.payments : fallbackPayments,
-  messages: payload?.messages?.length ? payload.messages : fallbackMessages,
-  supportTickets: payload?.supportTickets?.length ? payload.supportTickets : fallbackSupportTickets,
-  adminRows: payload?.adminRows?.length ? payload.adminRows : fallbackAdminRows,
-  metrics: payload?.metrics || {},
-  reportSummary: payload?.reportSummary || null,
+  currentAdmin:
+    payload?.currentAdmin && Object.keys(payload.currentAdmin).length > 0
+      ? payload.currentAdmin
+      : fallbackCurrentAdmin,
+  dashboardStats: preferLiveCollection(fallbackDashboardStats, payload?.dashboardStats),
+  recentOrders: preferLiveCollection(fallbackRecentOrders, payload?.recentOrders),
+  users: preferLiveCollection(fallbackUsers, payload?.users),
+  orders: preferLiveCollection(fallbackOrders, payload?.orders),
+  notaries: preferLiveCollection(fallbackNotaries, payload?.notaries),
+  documents: preferLiveCollection(fallbackDocuments, payload?.documents),
+  payments: preferLiveCollection(fallbackPayments, payload?.payments),
+  messages: preferLiveCollection(fallbackMessages, payload?.messages),
+  supportTickets: preferLiveCollection(fallbackSupportTickets, payload?.supportTickets),
+  adminRows: preferLiveCollection(fallbackAdminRows, payload?.adminRows),
+  metrics:
+    payload?.metrics && Object.keys(payload.metrics).length > 0
+      ? payload.metrics
+      : {},
+  reportSummary:
+    payload?.reportSummary && Object.keys(payload.reportSummary).length > 0
+      ? payload.reportSummary
+      : null,
 });
 
 const baseState = normalizeConsoleData(null);
@@ -51,7 +73,7 @@ export const fetchAdminRequests = createAsyncThunk(
       const payload = await apiRequest("/admin/requests", {
         query: filters,
       });
-      return payload?.data || payload || [];
+      return extractPaginatedResult(payload);
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to load access requests.");
     }
@@ -112,9 +134,37 @@ export const fetchAdminOrders = createAsyncThunk(
       const payload = await apiRequest("/admin/orders", {
         query: filters,
       });
-      return payload?.data || payload || [];
+      return extractPaginatedResult(payload);
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to load orders.");
+    }
+  }
+);
+
+export const fetchAdminUsers = createAsyncThunk(
+  "adminConsole/fetchAdminUsers",
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/users", {
+        query: filters,
+      });
+      return extractPaginatedResult(payload);
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load users.");
+    }
+  }
+);
+
+export const fetchAdminDocuments = createAsyncThunk(
+  "adminConsole/fetchAdminDocuments",
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/documents", {
+        query: filters,
+      });
+      return extractPaginatedResult(payload);
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load documents.");
     }
   }
 );
@@ -303,10 +353,12 @@ export const createNotary = createAsyncThunk(
 
 export const fetchAdmins = createAsyncThunk(
   "adminConsole/fetchAdmins",
-  async (_, { rejectWithValue }) => {
+  async (filters = {}, { rejectWithValue }) => {
     try {
-      const payload = await apiRequest("/admin/admins");
-      return payload?.data || payload || [];
+      const payload = await apiRequest("/admin/admins", {
+        query: filters,
+      });
+      return extractPaginatedResult(payload);
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to load admin list.");
     }
@@ -409,11 +461,19 @@ const adminConsoleSlice = createSlice({
     activeUserStatus: "idle",
     activeUserError: null,
     requests: [],
+    requestsPagination: emptyPagination,
     requestsStatus: "idle",
     requestsError: null,
     requestActionStatus: "idle",
     ordersStatus: "idle",
     ordersError: null,
+    ordersPagination: emptyPagination,
+    usersStatus: "idle",
+    usersError: null,
+    usersPagination: emptyPagination,
+    documentsStatus: "idle",
+    documentsError: null,
+    documentsPagination: emptyPagination,
     activeOrder: null,
     activeOrderStatus: "idle",
     activeOrderError: null,
@@ -423,6 +483,7 @@ const adminConsoleSlice = createSlice({
     orderActionStatus: "idle",
     orderActionError: null,
     admins: [],
+    adminsPagination: emptyPagination,
     adminsStatus: "idle",
     adminsError: null,
     createAdminStatus: "idle",
@@ -488,7 +549,8 @@ const adminConsoleSlice = createSlice({
         state.requestsError = null;
       })
       .addCase(fetchAdminRequests.fulfilled, (state, action) => {
-        state.requests = Array.isArray(action.payload) ? action.payload : [];
+        state.requests = Array.isArray(action.payload?.items) ? action.payload.items : [];
+        state.requestsPagination = action.payload?.pagination || emptyPagination;
         state.requestsStatus = "ready";
         state.requestsError = null;
       })
@@ -501,13 +563,42 @@ const adminConsoleSlice = createSlice({
         state.ordersError = null;
       })
       .addCase(fetchAdminOrders.fulfilled, (state, action) => {
-        state.orders = Array.isArray(action.payload) ? action.payload : [];
+        state.orders = Array.isArray(action.payload?.items) ? action.payload.items : [];
+        state.ordersPagination = action.payload?.pagination || emptyPagination;
         state.ordersStatus = "ready";
         state.ordersError = null;
       })
       .addCase(fetchAdminOrders.rejected, (state, action) => {
         state.ordersStatus = "error";
         state.ordersError = action.payload || "Unable to load orders.";
+      })
+      .addCase(fetchAdminUsers.pending, (state) => {
+        state.usersStatus = "loading";
+        state.usersError = null;
+      })
+      .addCase(fetchAdminUsers.fulfilled, (state, action) => {
+        state.users = Array.isArray(action.payload?.items) ? action.payload.items : [];
+        state.usersPagination = action.payload?.pagination || emptyPagination;
+        state.usersStatus = "ready";
+        state.usersError = null;
+      })
+      .addCase(fetchAdminUsers.rejected, (state, action) => {
+        state.usersStatus = "error";
+        state.usersError = action.payload || "Unable to load users.";
+      })
+      .addCase(fetchAdminDocuments.pending, (state) => {
+        state.documentsStatus = "loading";
+        state.documentsError = null;
+      })
+      .addCase(fetchAdminDocuments.fulfilled, (state, action) => {
+        state.documents = Array.isArray(action.payload?.items) ? action.payload.items : [];
+        state.documentsPagination = action.payload?.pagination || emptyPagination;
+        state.documentsStatus = "ready";
+        state.documentsError = null;
+      })
+      .addCase(fetchAdminDocuments.rejected, (state, action) => {
+        state.documentsStatus = "error";
+        state.documentsError = action.payload || "Unable to load documents.";
       })
       .addCase(fetchAdminOrder.pending, (state) => {
         state.activeOrderStatus = "loading";
@@ -614,7 +705,8 @@ const adminConsoleSlice = createSlice({
         state.adminsError = null;
       })
       .addCase(fetchAdmins.fulfilled, (state, action) => {
-        state.admins = Array.isArray(action.payload) ? action.payload : [];
+        state.admins = Array.isArray(action.payload?.items) ? action.payload.items : [];
+        state.adminsPagination = action.payload?.pagination || emptyPagination;
         state.adminsStatus = "ready";
         state.adminsError = null;
       })

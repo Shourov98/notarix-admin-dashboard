@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
   Eye,
@@ -20,8 +20,9 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
-import { selectAdminConsole } from "../../store/adminConsoleSlice";
-import { useAppSelector } from "../../store/hooks";
+import { fetchAdminConsole, selectAdminConsole } from "../../store/adminConsoleSlice";
+import { apiRequest } from "../../services/httpClient";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 const PreviewPanel = ({ open, onClose, onReject }) => {
   if (!open) return null;
@@ -49,9 +50,53 @@ const PreviewPanel = ({ open, onClose, onReject }) => {
 };
 
 const DocumentsPage = () => {
+  const dispatch = useAppDispatch();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
-  const { documents, metrics } = useAppSelector(selectAdminConsole);
+  const [documents, setDocuments] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 1,
+  });
+  const [filters, setFilters] = useState({
+    role: "",
+    status: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const { metrics } = useAppSelector(selectAdminConsole);
+
+  const loadDocuments = useCallback(async (page = 1, nextFilters = filters) => {
+    setLoading(true);
+    try {
+      const payload = await apiRequest("/admin/documents", {
+        query: {
+          page,
+          role: nextFilters.role || undefined,
+          status: nextFilters.status || undefined,
+        },
+      });
+      const data = payload?.data || payload || {};
+      setDocuments(data.items || []);
+      setPagination(data.pagination || {
+        page: 1,
+        pageSize: 10,
+        totalItems: 0,
+        totalPages: 1,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    dispatch(fetchAdminConsole());
+  }, [dispatch]);
+
+  useEffect(() => {
+    loadDocuments(1);
+  }, [loadDocuments]);
 
   return (
     <div>
@@ -69,11 +114,46 @@ const DocumentsPage = () => {
           <div className="flex flex-wrap items-center gap-4">
             <div className="inline-flex rounded-lg border border-slate-200 bg-white p-1">
               {["All", "Client", "Notary", "Internal"].map((item) => (
-                <button key={item} type="button" className={`h-9 rounded-md px-5 text-sm font-semibold ${item === "All" ? "bg-blue-50 text-[var(--color-brand-primary)]" : "text-slate-600"}`}>{item}</button>
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    const nextFilters = {
+                      ...filters,
+                      role: item === "All" ? "" : item,
+                    };
+                    setFilters(nextFilters);
+                    loadDocuments(1, nextFilters);
+                  }}
+                  className={`h-9 rounded-md px-5 text-sm font-semibold ${
+                    (filters.role || "All") === item
+                      ? "bg-blue-50 text-[var(--color-brand-primary)]"
+                      : "text-slate-600"
+                  }`}
+                >
+                  {item}
+                </button>
               ))}
             </div>
-            <select className="h-10"><option>All Types</option></select>
-            <input className="h-10" type="date" />
+            <select
+              className="h-10"
+              value={filters.status}
+              onChange={(event) => {
+                const nextFilters = {
+                  ...filters,
+                  status: event.target.value,
+                };
+                setFilters(nextFilters);
+                loadDocuments(1, nextFilters);
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="Pending">Pending</option>
+              <option value="Verified">Verified</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Missing">Missing</option>
+            </select>
+            <input className="h-10" type="date" disabled />
           </div>
           <div className="flex gap-4 text-slate-600">
             <Filter className="h-5 w-5" />
@@ -142,12 +222,33 @@ const DocumentsPage = () => {
                   </td>
                 </tr>
               ))}
+              {documents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-12 text-center text-sm text-slate-500">
+                    {loading ? "Loading documents..." : "No documents found for the current filters."}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
         <div className="flex flex-col gap-4 border-t border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-600">Showing 1-10 of 124 documents</p>
-          <Pagination />
+          <p className="text-sm text-slate-600">
+            Showing{" "}
+            {pagination.totalItems === 0
+              ? "0"
+              : `${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(
+                  pagination.page * pagination.pageSize,
+                  pagination.totalItems
+                )}`}{" "}
+            of {pagination.totalItems} documents
+          </p>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => loadDocuments(page)}
+            disabled={loading}
+          />
         </div>
       </Card>
 

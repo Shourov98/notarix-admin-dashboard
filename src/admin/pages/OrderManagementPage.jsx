@@ -18,6 +18,7 @@ import {
   MetricCard,
   Modal,
   PageHeader,
+  Pagination,
   StatusBadge,
 } from "../components/ui";
 import {
@@ -190,6 +191,7 @@ const OrderManagementPage = () => {
   const {
     metrics,
     orders,
+    ordersPagination,
     ordersStatus,
     ordersError,
     eligibleNotaries,
@@ -206,7 +208,7 @@ const OrderManagementPage = () => {
 
   useEffect(() => {
     dispatch(fetchAdminConsole());
-    dispatch(fetchAdminOrders());
+    dispatch(fetchAdminOrders({ page: 1 }));
   }, [dispatch]);
 
   const visibleOrders = useMemo(() => orders || [], [orders]);
@@ -223,6 +225,7 @@ const OrderManagementPage = () => {
         status:
           nextFilters.status === "All Statuses" ? undefined : nextFilters.status,
         serviceType: nextFilters.serviceType.trim() || undefined,
+        page: 1,
       })
     );
   };
@@ -272,9 +275,9 @@ const OrderManagementPage = () => {
       <Card className="mt-8 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(260px,1fr)_180px_180px]">
           <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="notarix-search-icon absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
-              className="h-12 w-full pl-11"
+              className="notarix-search-field h-12 w-full"
               placeholder="Search order ID, client, borrower, or notary..."
               value={filters.search}
               onChange={(event) => handleFilterChange("search", event.target.value)}
@@ -380,8 +383,32 @@ const OrderManagementPage = () => {
             </tbody>
           </table>
         </div>
-        <div className="border-t border-slate-100 px-6 py-5 text-sm text-slate-600">
-          Showing <strong>{visibleOrders.length}</strong> live order{visibleOrders.length === 1 ? "" : "s"}
+        <div className="flex flex-col gap-4 border-t border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600">
+            Showing{" "}
+            {ordersPagination.totalItems === 0
+              ? "0"
+              : `${(ordersPagination.page - 1) * ordersPagination.pageSize + 1}-${Math.min(
+                  ordersPagination.page * ordersPagination.pageSize,
+                  ordersPagination.totalItems
+                )}`}{" "}
+            of {ordersPagination.totalItems} orders
+          </p>
+          <Pagination
+            page={ordersPagination.page}
+            totalPages={ordersPagination.totalPages}
+            onPageChange={(page) =>
+              dispatch(
+                fetchAdminOrders({
+                  search: filters.search.trim() || undefined,
+                  status: filters.status === "All Statuses" ? undefined : filters.status,
+                  serviceType: filters.serviceType.trim() || undefined,
+                  page,
+                })
+              )
+            }
+            disabled={ordersStatus === "loading"}
+          />
         </div>
       </Card>
 
