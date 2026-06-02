@@ -1,22 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import {
-  adminRows as fallbackAdminRows,
-  currentAdmin as fallbackCurrentAdmin,
-  dashboardStats as fallbackDashboardStats,
-  documents as fallbackDocuments,
-  messages as fallbackMessages,
-  notaries as fallbackNotaries,
-  orders as fallbackOrders,
-  payments as fallbackPayments,
-  recentOrders as fallbackRecentOrders,
-  supportTickets as fallbackSupportTickets,
-  users as fallbackUsers,
-} from "../admin/data/notarixData";
 import { apiRequest } from "../services/httpClient";
 import { isAdminAuthenticated } from "../utils/auth";
-
-const preferLiveCollection = (fallbackItems, liveItems) =>
-  Array.isArray(liveItems) && liveItems.length > 0 ? liveItems : fallbackItems;
 
 const emptyPagination = {
   page: 1,
@@ -43,17 +27,17 @@ const normalizeConsoleData = (payload) => ({
   currentAdmin:
     payload?.currentAdmin && Object.keys(payload.currentAdmin).length > 0
       ? payload.currentAdmin
-      : fallbackCurrentAdmin,
-  dashboardStats: preferLiveCollection(fallbackDashboardStats, payload?.dashboardStats),
-  recentOrders: preferLiveCollection(fallbackRecentOrders, payload?.recentOrders),
-  users: preferLiveCollection(fallbackUsers, payload?.users),
-  orders: preferLiveCollection(fallbackOrders, payload?.orders),
-  notaries: preferLiveCollection(fallbackNotaries, payload?.notaries),
-  documents: preferLiveCollection(fallbackDocuments, payload?.documents),
-  payments: preferLiveCollection(fallbackPayments, payload?.payments),
-  messages: preferLiveCollection(fallbackMessages, payload?.messages),
-  supportTickets: preferLiveCollection(fallbackSupportTickets, payload?.supportTickets),
-  adminRows: preferLiveCollection(fallbackAdminRows, payload?.adminRows),
+      : {},
+  dashboardStats: Array.isArray(payload?.dashboardStats) ? payload.dashboardStats : [],
+  recentOrders: Array.isArray(payload?.recentOrders) ? payload.recentOrders : [],
+  users: Array.isArray(payload?.users) ? payload.users : [],
+  orders: Array.isArray(payload?.orders) ? payload.orders : [],
+  notaries: Array.isArray(payload?.notaries) ? payload.notaries : [],
+  documents: Array.isArray(payload?.documents) ? payload.documents : [],
+  payments: Array.isArray(payload?.payments) ? payload.payments : [],
+  messages: Array.isArray(payload?.messages) ? payload.messages : [],
+  supportTickets: Array.isArray(payload?.supportTickets) ? payload.supportTickets : [],
+  adminRows: Array.isArray(payload?.adminRows) ? payload.adminRows : [],
   metrics:
     payload?.metrics && Object.keys(payload.metrics).length > 0
       ? payload.metrics

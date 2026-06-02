@@ -29,7 +29,7 @@ import {
   SelectField,
   StatusBadge,
 } from "../components/ui";
-import { settingsNavItems } from "../data/notarixData";
+import { settingsNavItems } from "../data/navigation";
 import {
   activateAdmin,
   createAdmin,

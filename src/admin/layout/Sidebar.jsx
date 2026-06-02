@@ -1,7 +1,7 @@
 import { LogOut } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
 import BrandLogo from "../components/BrandLogo";
-import { primaryNavItems } from "../data/notarixData";
+import { primaryNavItems } from "../data/navigation";
 import { clearAdminSession } from "../../utils/auth";
 import { cn } from "../utils/cn";
 import { selectAdminConsole } from "../../store/adminConsoleSlice";

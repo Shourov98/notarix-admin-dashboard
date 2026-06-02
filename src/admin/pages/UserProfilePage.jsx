@@ -20,7 +20,6 @@ import {
   SectionTitle,
   StatusBadge,
 } from "../components/ui";
-import { clientDocuments, notaryDocuments } from "../data/notarixData";
 import {
   fetchAdminUser,
   selectAdminConsole,
@@ -143,7 +142,7 @@ const ClientDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
       ))}
     </div>
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-      {(documents.length ? documents : clientDocuments).map((doc) => (
+      {documents.length ? documents.map((doc) => (
         <Card key={doc.title} className={`p-6 ${doc.status === "Rejected" ? "border-red-200 bg-red-50" : ""}`}>
           <div className="mb-4 flex items-start justify-between">
             <h3 className="text-lg font-bold">{doc.title}</h3>
@@ -179,7 +178,11 @@ const ClientDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
             )}
           </div>
         </Card>
-      ))}
+      )) : (
+        <Card className="p-8 text-center text-slate-500 lg:col-span-2 xl:col-span-3">
+          No client documents found for this user.
+        </Card>
+      )}
     </div>
   </div>
 );
@@ -190,19 +193,19 @@ const NotaryOverview = ({ notary }) => (
       <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center gap-5">
           <Avatar
-            name={notary?.name || "Sarah Jenkins"}
+            name={notary?.name || "Notary User"}
             size="lg"
             src={notary?.avatar || undefined}
             tone={notary?.avatarTone || "bg-rose-100 text-rose-700"}
           />
           <div>
-            <h2 className="text-2xl font-bold">{notary?.name || "Sarah Jenkins"}</h2>
+            <h2 className="text-2xl font-bold">{notary?.name || "Notary User"}</h2>
             <div className="mt-2 flex flex-wrap gap-5 text-slate-600">
               <span className="inline-flex items-center gap-2">
-                <Mail className="h-4 w-4" /> {notary?.email || "m.thorne@legalnotary.com"}
+                <Mail className="h-4 w-4" /> {notary?.email || "Not provided"}
               </span>
               <span className="inline-flex items-center gap-2">
-                <Phone className="h-4 w-4" /> {notary?.personalInfo?.phone || "(555) 012-3456"}
+                <Phone className="h-4 w-4" /> {notary?.personalInfo?.phone || "Not provided"}
               </span>
             </div>
           </div>
@@ -322,7 +325,7 @@ const NotaryDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
       ))}
     </div>
     <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
-      {(documents.length ? documents : notaryDocuments).map((doc, index) => (
+      {documents.length ? documents.map((doc, index) => (
         <Card key={doc.title} className="flex min-h-[270px] flex-col overflow-hidden">
           <div className="border-b border-[var(--color-border)] p-5">
             <div className="flex items-start justify-between">
@@ -370,13 +373,11 @@ const NotaryDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
             </div>
           </div>
         </Card>
-      ))}
-      <Card className="flex min-h-[300px] flex-col items-center justify-center bg-[var(--color-brand-primary)] p-8 text-center text-white">
-        <ShieldCheck className="h-16 w-16 rounded-full bg-white/20 p-4" />
-        <h3 className="mt-6 text-xl font-semibold">Final Review</h3>
-        <p className="mt-2 text-blue-100">Ready for final administrative sign-off? Ensure all flags are resolved.</p>
-        <Button variant="secondary" className="mt-6 w-full text-[var(--color-brand-primary)]">Approve Notary Profile</Button>
-      </Card>
+      )) : (
+        <Card className="p-8 text-center text-slate-500 lg:col-span-2 xl:col-span-3">
+          No notary documents found for this user.
+        </Card>
+      )}
     </div>
   </div>
 );
