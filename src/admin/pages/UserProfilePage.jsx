@@ -35,6 +35,19 @@ const InfoLine = ({ label, value, link }) => (
   </div>
 );
 
+const formatCompletion = (documents = []) => {
+  if (!documents.length) {
+    return 0;
+  }
+
+  const completedStatuses = new Set(["Verified", "Approved", "Completed", "Uploaded"]);
+  const completed = documents.filter((doc) => completedStatuses.has(doc?.status)).length;
+  return Math.round((completed / documents.length) * 100);
+};
+
+const countPendingDocuments = (documents = []) =>
+  documents.filter((doc) => !["Verified", "Approved", "Completed"].includes(doc?.status)).length;
+
 const ClientOverview = ({ client }) => (
   <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
     <div className="grid gap-6 md:grid-cols-2">
@@ -95,17 +108,22 @@ const ClientOverview = ({ client }) => (
         <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Verification Status</p>
         <div className="mx-auto mt-7 grid h-40 w-40 place-items-center rounded-full border-[14px] border-[var(--color-brand-primary)]">
           <div>
-            <p className="text-4xl font-extrabold text-[var(--color-brand-primary)]">75%</p>
-            <p className="text-sm uppercase text-slate-400">Complete</p>
+            <p className="text-4xl font-extrabold text-[var(--color-brand-primary)]">
+              {formatCompletion(client?.requiredDocuments)}%
+            </p>
+            <p className="text-sm uppercase text-slate-400">
+              {client?.verification || "Pending"}
+            </p>
           </div>
         </div>
         <p className="mx-auto mt-7 max-w-[260px] text-slate-600">
-          Pending document verification for legal compliance.
+          {client?.requiredDocuments?.length
+            ? "Completion is based on the live document statuses currently stored for this client."
+            : "No client documents have been uploaded yet."}
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          <StatusBadge status="Identity" />
-          <StatusBadge status="Tax ID" />
-          <StatusBadge status="Business License" />
+          <StatusBadge status={client?.status || "Pending"} />
+          <StatusBadge status={client?.verification || "Pending Review"} />
         </div>
       </Card>
       <Card className="p-6">
@@ -213,8 +231,8 @@ const NotaryOverview = ({ notary }) => (
         <div className="grid gap-6 text-right sm:grid-cols-4">
           <InfoLine label="Status" value={notary?.status || "Pending"} />
           <InfoLine label="Verification" value={notary?.verification || "In Review"} />
-          <InfoLine label="Coverage Area" value={notary?.commission?.coverageAreas || "FL, GA"} />
-          <InfoLine label="Last Active" value="2 hours ago" />
+          <InfoLine label="Coverage Area" value={notary?.commission?.coverageAreas || "Not provided"} />
+          <InfoLine label="Last Active" value={notary?.lastActiveAt || "Not available"} />
         </div>
       </div>
     </Card>
@@ -223,31 +241,54 @@ const NotaryOverview = ({ notary }) => (
       <Card className="p-7">
         <h2 className="text-2xl font-semibold">Profile Completion</h2>
         <div className="mt-6 flex items-center justify-between">
-          <p className="font-bold text-[var(--color-brand-primary)]">85% Complete</p>
-          <p className="text-sm text-slate-600">2 items pending</p>
+          <p className="font-bold text-[var(--color-brand-primary)]">
+            {formatCompletion(notary?.requiredDocuments)}% Complete
+          </p>
+          <p className="text-sm text-slate-600">
+            {countPendingDocuments(notary?.requiredDocuments)} items pending
+          </p>
         </div>
-        <div className="mt-3"><ProgressBar value={85} /></div>
-        <p className="mt-3 text-sm text-slate-600">Required documents and payment setup are needed for full approval.</p>
+        <div className="mt-3"><ProgressBar value={formatCompletion(notary?.requiredDocuments)} /></div>
+        <p className="mt-3 text-sm text-slate-600">
+          Completion reflects the live notary document statuses currently available in the backend.
+        </p>
       </Card>
       <Card className="p-7">
         <h2 className="text-2xl font-semibold">Completion Checklist</h2>
         <div className="mt-6 grid gap-8 md:grid-cols-2">
-          {[
-            ["Profile Fields", ["Profile Photo", "Commission Number", "Commission State", "Payment Method"]],
-            ["Required Documents", ["Commission Certificate", "Background Check", "Government ID", "ACH / Void Check"]],
-          ].map(([title, rows]) => (
-            <div key={title}>
-              <p className="mb-4 text-sm uppercase text-slate-500">{title}</p>
-              {rows.map((row, index) => (
-                <div key={row} className="flex items-center justify-between border-b border-slate-100 py-3">
-                  <span>{row}</span>
-                  <span className={index === rows.length - 1 ? "h-3 w-3 rounded-full bg-amber-400" : "text-emerald-600"}>
-                    {index === rows.length - 1 ? null : <CheckCircle2 className="h-5 w-5" />}
+          <div>
+            <p className="mb-4 text-sm uppercase text-slate-500">Profile Fields</p>
+            {[
+              ["Profile Photo", Boolean(notary?.avatar)],
+              ["Commission Number", Boolean(notary?.commission?.number)],
+              ["Commission State", Boolean(notary?.commission?.state)],
+              ["Payment Method", Boolean(notary?.bankInfo?.bankName || notary?.bankInfo?.accountNumber)],
+            ].map(([label, complete]) => (
+              <div key={label} className="flex items-center justify-between border-b border-slate-100 py-3">
+                <span>{label}</span>
+                <span className={complete ? "text-emerald-600" : "h-3 w-3 rounded-full bg-amber-400"}>
+                  {complete ? <CheckCircle2 className="h-5 w-5" /> : null}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <p className="mb-4 text-sm uppercase text-slate-500">Required Documents</p>
+            {(notary?.requiredDocuments?.length ? notary.requiredDocuments : []).map((doc) => {
+              const complete = ["Verified", "Approved", "Completed"].includes(doc?.status);
+              return (
+                <div key={doc.id || doc.title} className="flex items-center justify-between border-b border-slate-100 py-3">
+                  <span>{doc.title || "Untitled document"}</span>
+                  <span className={complete ? "text-emerald-600" : "h-3 w-3 rounded-full bg-amber-400"}>
+                    {complete ? <CheckCircle2 className="h-5 w-5" /> : null}
                   </span>
                 </div>
-              ))}
-            </div>
-          ))}
+              );
+            })}
+            {!notary?.requiredDocuments?.length ? (
+              <p className="py-3 text-sm text-slate-500">No required documents are on file yet.</p>
+            ) : null}
+          </div>
         </div>
       </Card>
     </div>
@@ -256,11 +297,11 @@ const NotaryOverview = ({ notary }) => (
       <Card className="p-7">
         <SectionTitle icon={BriefcaseIcon} title="Notary Information" />
         {[
-          ["Commission Number", notary?.commission?.number || "NY-88291"],
-          ["Commission State", notary?.commission?.state || "New York"],
-          ["Expiration Date", notary?.commission?.expirationDate || "Oct 24, 2026"],
-          ["Travel Radius", notary?.commission?.travelRadius || "25 miles"],
-          ["Coverage Areas", notary?.commission?.coverageAreas || "Manhattan, Brooklyn"],
+          ["Commission Number", notary?.commission?.number || "Not provided"],
+          ["Commission State", notary?.commission?.state || "Not provided"],
+          ["Expiration Date", notary?.commission?.expirationDate || "Not provided"],
+          ["Travel Radius", notary?.commission?.travelRadius || "Not provided"],
+          ["Coverage Areas", notary?.commission?.coverageAreas || "Not provided"],
         ].map(([label, value]) => (
           <div key={label} className="flex justify-between border-b border-slate-100 py-3 last:border-b-0">
             <span className="text-slate-600">{label}</span>
@@ -271,12 +312,16 @@ const NotaryOverview = ({ notary }) => (
       <Card className="p-7">
         <SectionTitle icon={ShieldCheck} title="Professional Details" />
         <div className="space-y-5">
-          <div className="flex justify-between"><span className="text-slate-600">RON Approval</span><strong className="text-emerald-600">Approved</strong></div>
-          <div className="flex justify-between"><span className="text-slate-600">Background Check Date</span><strong>Feb 15, 2026</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">RON Approval</span><strong className={notary?.verification === "Verified" ? "text-emerald-600" : ""}>{notary?.verification || "Pending"}</strong></div>
+          <div className="flex justify-between"><span className="text-slate-600">Background Check Date</span><strong>{notary?.backgroundCheckDate || "Not provided"}</strong></div>
           <div>
             <p className="text-slate-600">Specialties</p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {["RON", "HELOC", "Purchase", "Seller Package"].map((tag) => <StatusBadge key={tag} status={tag} />)}
+              {notary?.specialties?.length ? (
+                notary.specialties.map((tag) => <StatusBadge key={tag} status={tag} />)
+              ) : (
+                <span className="text-sm text-slate-500">No specialties on record.</span>
+              )}
             </div>
           </div>
         </div>
@@ -284,10 +329,10 @@ const NotaryOverview = ({ notary }) => (
       <Card className="p-7">
         <SectionTitle icon={MapPin} title="Address Information" />
         <div className="grid gap-5 sm:grid-cols-2">
-          <InfoLine label="Address Line 1" value={notary?.address?.line1 || "725 5th Ave"} />
-          <InfoLine label="City" value={notary?.address?.city || "New York"} />
-          <InfoLine label="State" value={notary?.address?.state || "NY"} />
-          <InfoLine label="ZIP Code" value={notary?.address?.zip || "10022"} />
+          <InfoLine label="Address Line 1" value={notary?.address?.line1 || "Not provided"} />
+          <InfoLine label="City" value={notary?.address?.city || "Not provided"} />
+          <InfoLine label="State" value={notary?.address?.state || "Not provided"} />
+          <InfoLine label="ZIP Code" value={notary?.address?.zip || "Not provided"} />
         </div>
       </Card>
       <Card className="p-7">
@@ -458,27 +503,27 @@ const UserProfilePage = ({ type = "client" }) => {
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-5">
               <Avatar
-                name={client?.name || "Michael Chen"}
+                name={client?.name || "Client User"}
                 size="lg"
                 src={client?.avatar || undefined}
                 tone={client?.avatarTone || "bg-slate-200 text-slate-700"}
               />
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h2 className="text-2xl font-bold">{client?.name || "Michael Chen"}</h2>
+                  <h2 className="text-2xl font-bold">{client?.name || "Client User"}</h2>
                   <StatusBadge status={client?.status || "Pending"} />
                 </div>
                 <p className="mt-1 text-slate-500">
-                  {activeUserStatus === "loading" ? "Loading profile..." : `Code: ${id || "AXM-4410"}`}
+                  {activeUserStatus === "loading" ? "Loading profile..." : `Code: ${id || "Not available"}`}
                 </p>
               </div>
             </div>
             <div className="w-full max-w-xs">
               <div className="mb-3 flex justify-between text-sm">
                 <span className="text-slate-600">Profile Completion</span>
-                <strong className="text-2xl text-[var(--color-brand-primary)]">75%</strong>
+                <strong className="text-2xl text-[var(--color-brand-primary)]">{formatCompletion(client?.requiredDocuments)}%</strong>
               </div>
-              <ProgressBar value={75} />
+              <ProgressBar value={formatCompletion(client?.requiredDocuments)} />
             </div>
           </div>
         </Card>
