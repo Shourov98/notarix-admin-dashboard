@@ -1,7 +1,13 @@
 import { Link } from "react-router-dom";
 import {
+  BadgeCheck,
   ChartNoAxesColumn,
+  ClipboardCheck,
+  ClipboardList,
+  Hourglass,
+  Landmark,
   PlusCircle,
+  ShieldUser,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -21,6 +27,15 @@ const quickActions = [
   { label: "Add Client", icon: UserPlus, to: "/users/new?type=client" },
   { label: "View Reports", icon: ChartNoAxesColumn, to: "/reports" },
 ];
+
+const dashboardStatIcons = {
+  "Total Users": UsersRound,
+  "Pending Approvals": Hourglass,
+  "Total Orders": ClipboardList,
+  "Completed Orders": ClipboardCheck,
+  "Total Revenue": Landmark,
+  "Admin Team": ShieldUser,
+};
 
 const quickActionClass =
   "inline-flex h-12 w-full items-center justify-start gap-2 rounded-lg bg-white/15 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/20";
@@ -46,9 +61,10 @@ const DashboardPage = () => {
       <PageHeader title="Dashboard Overview" description="System performance, orders, and activity insights" />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-        {dashboardStats.map((item) => (
-          <MetricCard key={item.label} {...item} />
-        ))}
+        {dashboardStats.map((item) => {
+          const StatIcon = dashboardStatIcons[item.label] || BadgeCheck;
+          return <MetricCard key={item.label} {...item} icon={StatIcon} />;
+        })}
       </div>
 
       <div className="mt-10 grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
