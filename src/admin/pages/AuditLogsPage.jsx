@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
-import { Card, PageHeader, StatusBadge } from "../components/ui";
+import { Card, PageHeader, Pagination, StatusBadge } from "../components/ui";
 import { apiRequest } from "../../services/httpClient";
 
 const formatDate = (value) =>
@@ -17,12 +17,18 @@ const formatDate = (value) =>
 
 const AuditLogsPage = () => {
   const [items, setItems] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 20,
+    totalItems: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("");
   const [entityType, setEntityType] = useState("");
 
-  const loadLogs = useCallback(async (next = {}) => {
+  const loadLogs = useCallback(async (next = {}, page = 1) => {
     setLoading(true);
     try {
       const payload = await apiRequest("/admin/audit-logs", {
@@ -30,9 +36,17 @@ const AuditLogsPage = () => {
           search: next.search ?? search,
           action: next.action ?? action,
           entityType: next.entityType ?? entityType,
+          page,
         },
       });
-      setItems(payload?.data || payload || []);
+      const data = payload?.data || payload || {};
+      setItems(data.items || []);
+      setPagination(data.pagination || {
+        page: 1,
+        pageSize: 20,
+        totalItems: 0,
+        totalPages: 1,
+      });
     } catch (error) {
       toast.error(error?.message || "Unable to load audit logs.");
     } finally {
@@ -41,7 +55,7 @@ const AuditLogsPage = () => {
   }, [search, action, entityType]);
 
   useEffect(() => {
-    loadLogs({ search: "", action: "", entityType: "" });
+    loadLogs({ search: "", action: "", entityType: "" }, 1);
   }, [loadLogs]);
 
   const actionOptions = useMemo(
@@ -64,9 +78,9 @@ const AuditLogsPage = () => {
       <Card className="overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-[var(--color-border)] p-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative max-w-xl flex-1">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="notarix-search-icon absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
-              className="h-12 w-full bg-[#f0eefb] pl-11"
+              className="notarix-search-field h-12 w-full bg-[#f0eefb]"
               placeholder="Search by action, entity, or actor..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -88,7 +102,7 @@ const AuditLogsPage = () => {
             <button
               type="button"
               className="rounded-lg bg-[var(--color-brand-primary)] px-4 py-2 text-sm font-semibold text-white"
-              onClick={() => loadLogs()}
+              onClick={() => loadLogs({}, 1)}
             >
               Apply
             </button>
@@ -136,6 +150,24 @@ const AuditLogsPage = () => {
         ) : items.length === 0 ? (
           <p className="px-6 py-5 text-sm text-slate-500">No audit log entries found.</p>
         ) : null}
+        <div className="flex flex-col gap-4 border-t border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600">
+            Showing{" "}
+            {pagination.totalItems === 0
+              ? "0"
+              : `${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(
+                  pagination.page * pagination.pageSize,
+                  pagination.totalItems
+                )}`}{" "}
+            of {pagination.totalItems} audit log entries
+          </p>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => loadLogs({}, page)}
+            disabled={loading}
+          />
+        </div>
       </Card>
     </div>
   );

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Eye, MoreVertical, Plus, UserCheck, UserRound, Users, UserX } from "lucide-react";
 import {
@@ -9,11 +10,37 @@ import {
   Pagination,
   StatusBadge,
 } from "../components/ui";
-import { selectAdminConsole } from "../../store/adminConsoleSlice";
-import { useAppSelector } from "../../store/hooks";
+import { fetchAdminUsers, selectAdminConsole } from "../../store/adminConsoleSlice";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 const UserManagementPage = () => {
-  const { users, metrics } = useAppSelector(selectAdminConsole);
+  const dispatch = useAppDispatch();
+  const { users, metrics, usersPagination, usersStatus, usersError } = useAppSelector(selectAdminConsole);
+  const [filters, setFilters] = useState({
+    search: "",
+    role: "",
+    status: "",
+    page: 1,
+  });
+
+  useEffect(() => {
+    dispatch(
+      fetchAdminUsers({
+        search: filters.search || undefined,
+        role: filters.role || undefined,
+        status: filters.status || undefined,
+        page: filters.page,
+      })
+    );
+  }, [dispatch, filters]);
+
+  const handleFilterChange = (field, value) => {
+    setFilters((current) => ({
+      ...current,
+      [field]: value,
+      page: field === "page" ? value : 1,
+    }));
+  };
 
   return (
     <div>
@@ -38,17 +65,22 @@ const UserManagementPage = () => {
 
       <div className="mt-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid gap-3 md:grid-cols-[minmax(240px,380px)_160px_220px]">
-          <input placeholder="Search users..." className="h-12 w-full" />
-          <select className="h-12 w-full">
-            <option>Role: All</option>
-            <option>Client</option>
-            <option>Notary</option>
+          <input
+            placeholder="Search users..."
+            className="h-12 w-full"
+            value={filters.search}
+            onChange={(event) => handleFilterChange("search", event.target.value)}
+          />
+          <select className="h-12 w-full" value={filters.role} onChange={(event) => handleFilterChange("role", event.target.value)}>
+            <option value="">Role: All</option>
+            <option value="Client">Client</option>
+            <option value="Notary">Notary</option>
           </select>
-          <select className="h-12 w-full">
-            <option>Status: All</option>
-            <option>Active</option>
-            <option>Pending</option>
-            <option>Suspended</option>
+          <select className="h-12 w-full" value={filters.status} onChange={(event) => handleFilterChange("status", event.target.value)}>
+            <option value="">Status: All</option>
+            <option value="Active">Active</option>
+            <option value="Pending">Pending</option>
+            <option value="Suspended">Suspended</option>
           </select>
         </div>
       </div>
@@ -108,12 +140,35 @@ const UserManagementPage = () => {
                   </tr>
                 );
               })}
+              {users.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-14 text-center text-sm text-slate-500">
+                    {usersStatus === "loading"
+                      ? "Loading users..."
+                      : usersError || "No users found for the current filters."}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
         <div className="flex flex-col gap-4 border-t border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-slate-600">Showing 3 of 124 documents</p>
-          <Pagination />
+          <p className="text-sm text-slate-600">
+            Showing{" "}
+            {usersPagination.totalItems === 0
+              ? "0"
+              : `${(usersPagination.page - 1) * usersPagination.pageSize + 1}-${Math.min(
+                  usersPagination.page * usersPagination.pageSize,
+                  usersPagination.totalItems
+                )}`}{" "}
+            of {usersPagination.totalItems} users
+          </p>
+          <Pagination
+            page={usersPagination.page}
+            totalPages={usersPagination.totalPages}
+            onPageChange={(page) => handleFilterChange("page", page)}
+            disabled={usersStatus === "loading"}
+          />
         </div>
       </Card>
     </div>

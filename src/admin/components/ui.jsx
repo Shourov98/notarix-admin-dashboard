@@ -305,25 +305,59 @@ export const MiniBarChart = ({ values = [] }) => {
   );
 };
 
-export const Pagination = () => (
-  <div className="flex items-center gap-2">
-    <Button variant="secondary" size="sm" className="w-9 px-0" aria-label="Previous">
-      <ChevronLeft className="h-4 w-4" />
-    </Button>
-    <Button size="sm" className="w-9 px-0">
-      1
-    </Button>
-    <Button variant="secondary" size="sm" className="w-9 px-0">
-      2
-    </Button>
-    <Button variant="secondary" size="sm" className="w-9 px-0">
-      3
-    </Button>
-    <Button variant="secondary" size="sm" className="w-9 px-0" aria-label="Next">
-      <ChevronRight className="h-4 w-4" />
-    </Button>
-  </div>
-);
+export const Pagination = ({
+  page = 1,
+  totalPages = 1,
+  onPageChange,
+  disabled = false,
+}) => {
+  const safeTotalPages = Math.max(Number(totalPages) || 1, 1);
+  const safePage = Math.min(Math.max(Number(page) || 1, 1), safeTotalPages);
+  const start = Math.max(1, safePage - 1);
+  const end = Math.min(safeTotalPages, start + 2);
+  const visiblePages = [];
+
+  for (let current = Math.max(1, end - 2); current <= end; current += 1) {
+    visiblePages.push(current);
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Button
+        variant="secondary"
+        size="sm"
+        className="w-9 px-0"
+        aria-label="Previous"
+        onClick={() => onPageChange?.(safePage - 1)}
+        disabled={disabled || safePage <= 1}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      {visiblePages.map((value) => (
+        <Button
+          key={value}
+          variant={value === safePage ? "primary" : "secondary"}
+          size="sm"
+          className="w-9 px-0"
+          onClick={() => onPageChange?.(value)}
+          disabled={disabled}
+        >
+          {value}
+        </Button>
+      ))}
+      <Button
+        variant="secondary"
+        size="sm"
+        className="w-9 px-0"
+        aria-label="Next"
+        onClick={() => onPageChange?.(safePage + 1)}
+        disabled={disabled || safePage >= safeTotalPages}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
 
 export const ActionIcons = ({ onPreview }) => (
   <div className="flex items-center gap-3 text-slate-500">
@@ -341,8 +375,9 @@ export const Modal = ({ title, subtitle, icon: Icon, open, onClose, children, fo
   const toneClass = tone === "danger" ? "bg-red-100 text-red-600" : "bg-blue-100 text-[var(--color-brand-primary)]";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-modal">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/45 px-4 py-6">
+      <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
+        <div className="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-lg bg-white shadow-modal">
         <div className="flex items-start justify-between border-b border-[var(--color-border)] px-6 py-5">
           <div className="flex items-start gap-4">
             {Icon ? (
@@ -359,10 +394,11 @@ export const Modal = ({ title, subtitle, icon: Icon, open, onClose, children, fo
             <X className="h-6 w-6" />
           </button>
         </div>
-        <div className="notarix-scrollbar max-h-[calc(92vh-154px)] overflow-y-auto px-6 py-6">
+        <div className="notarix-scrollbar min-h-0 flex-1 overflow-y-auto px-6 py-6">
           {children}
         </div>
-        {footer ? <div className="border-t border-[var(--color-border)] bg-[#f3f1fb] px-6 py-4">{footer}</div> : null}
+        {footer ? <div className="border-t border-[var(--color-border)] bg-[#f3f1fb] px-6 py-5 pb-6">{footer}</div> : null}
+        </div>
       </div>
     </div>
   );

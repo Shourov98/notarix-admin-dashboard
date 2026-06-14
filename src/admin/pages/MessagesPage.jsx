@@ -189,20 +189,20 @@ const MessagesPage = () => {
   const counterpartName = activeConversation?.counterpart?.name || "Select a conversation";
 
   return (
-    <div className="grid min-h-[calc(100vh-10rem)] gap-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:grid-cols-[380px_minmax(0,1fr)]">
-      <aside className="border-r border-[var(--color-border)] bg-[#f8f7ff] p-6">
+    <div className="grid h-[calc(100vh-10rem)] min-h-0 gap-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:grid-cols-[380px_minmax(0,1fr)]">
+      <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[#f8f7ff] p-6">
         <h1 className="text-2xl font-semibold">Messages</h1>
         <div className="relative mt-5">
-          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+          <Search className="notarix-search-icon absolute top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           <input
-            className="h-12 w-full pl-12"
+            className="notarix-search-field h-12 w-full"
             placeholder="Search by name or order ID"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
 
-        <div className="mt-7 space-y-1">
+        <div className="notarix-scrollbar mt-7 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
           {filteredConversations.map((conversation) => {
             const isActive = conversation.id === activeConversationId;
             return (
@@ -252,7 +252,7 @@ const MessagesPage = () => {
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-col">
+      <section className="flex min-h-0 min-w-0 flex-col">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-7 py-4">
           <div className="flex items-center gap-4">
             <Avatar
@@ -276,7 +276,7 @@ const MessagesPage = () => {
           ) : null}
         </div>
 
-        <div className="notarix-scrollbar flex-1 overflow-y-auto p-7">
+        <div className="notarix-scrollbar min-h-0 flex-1 overflow-y-auto p-7">
           {messages.map((message) => (
             <div
               key={message.id}

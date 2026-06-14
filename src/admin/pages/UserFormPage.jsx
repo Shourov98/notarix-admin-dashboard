@@ -157,7 +157,7 @@ const UserFormPage = () => {
             profilePhoto,
             requiredDocuments: notaryDocumentsState.map((document) => ({
               title: document.title,
-              status: document.file ? "Pending" : "Missing",
+              status: document.file ? "Verified" : "Missing",
               file: document.file?.name || null,
               mimeType: document.file?.type,
               size: document.file?.size,
@@ -196,7 +196,7 @@ const UserFormPage = () => {
           passwordResetRequired: formState.requirePasswordReset,
           requiredDocuments: clientDocuments.map((document) => ({
             title: document.title,
-            status: document.file ? "Pending" : "Missing",
+            status: document.file ? "Verified" : "Missing",
             file: document.file?.name || null,
             mimeType: document.file?.type,
             size: document.file?.size,

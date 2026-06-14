@@ -66,3 +66,12 @@
   background: #c7cce1;
   border-radius: 999px;
 }
+
+.notarix-search-field {
+  padding-left: 3.25rem !important;
+}
+
+.notarix-search-icon {
+  left: 1rem;
+  pointer-events: none;
+}

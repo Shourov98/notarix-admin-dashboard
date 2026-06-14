@@ -15,6 +15,7 @@ import {
   MetricCard,
   Modal,
   PageHeader,
+  Pagination,
   StatusBadge,
   TextArea,
 } from "../components/ui";
@@ -161,6 +162,12 @@ const PaymentActionModal = ({
 const PaymentsPage = () => {
   const [summary, setSummary] = useState(null);
   const [payments, setPayments] = useState([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 1,
+  });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [type, setType] = useState("");
@@ -168,7 +175,7 @@ const PaymentsPage = () => {
   const [activePayment, setActivePayment] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadPayments = useCallback(async (nextFilters = {}) => {
+  const loadPayments = useCallback(async (nextFilters = {}, page = 1) => {
     setLoading(true);
     try {
       const payload = await apiRequest("/admin/payments", {
@@ -176,12 +183,19 @@ const PaymentsPage = () => {
           search: nextFilters.search ?? search,
           type: nextFilters.type ?? type,
           status: nextFilters.status ?? status,
+          page,
         },
       });
 
       const data = payload?.data || payload || {};
       setSummary(data.summary || null);
-      setPayments(data.payments || []);
+      setPayments(data.items || []);
+      setPagination(data.pagination || {
+        page: 1,
+        pageSize: 10,
+        totalItems: 0,
+        totalPages: 1,
+      });
     } catch (error) {
       toast.error(error?.message || "Unable to load payments.");
     } finally {
@@ -190,7 +204,7 @@ const PaymentsPage = () => {
   }, [search, type, status]);
 
   useEffect(() => {
-    loadPayments({ search: "", type: "", status: "" });
+    loadPayments({ search: "", type: "", status: "" }, 1);
   }, [loadPayments]);
 
   const filteredPayments = useMemo(() => payments, [payments]);
@@ -260,9 +274,9 @@ const PaymentsPage = () => {
       <Card className="mt-8 overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-[var(--color-border)] p-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative max-w-xl flex-1">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Search className="notarix-search-icon absolute top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
-              className="h-12 w-full bg-[#f0eefb] pl-11"
+              className="notarix-search-field h-12 w-full bg-[#f0eefb]"
               placeholder="Search by order, client, or notary..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -282,7 +296,7 @@ const PaymentsPage = () => {
               <option value="Paid">Paid</option>
               <option value="Failed">Failed</option>
             </select>
-            <Button variant="secondary" onClick={() => loadPayments()}>Apply</Button>
+            <Button variant="secondary" onClick={() => loadPayments({}, 1)}>Apply</Button>
           </div>
         </div>
 
@@ -349,6 +363,24 @@ const PaymentsPage = () => {
         ) : filteredPayments.length === 0 ? (
           <p className="px-6 py-5 text-sm text-slate-500">No payment records found.</p>
         ) : null}
+        <div className="flex flex-col gap-4 border-t border-slate-100 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-slate-600">
+            Showing{" "}
+            {pagination.totalItems === 0
+              ? "0"
+              : `${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(
+                  pagination.page * pagination.pageSize,
+                  pagination.totalItems
+                )}`}{" "}
+            of {pagination.totalItems} payments
+          </p>
+          <Pagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            onPageChange={(page) => loadPayments({}, page)}
+            disabled={loading}
+          />
+        </div>
       </Card>
 
       <PaymentActionModal

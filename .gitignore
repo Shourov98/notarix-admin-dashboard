@@ -2,6 +2,7 @@ node_modules/
 dist/
 build/
 Agents.md
+.env
 .DS_Store
 *.log
 .idea/      

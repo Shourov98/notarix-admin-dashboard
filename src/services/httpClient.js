@@ -4,7 +4,6 @@ import {
   setAdminSession,
   isTokenExpired,
 } from "../utils/auth";
-import { getStaticMockResponse } from "./staticMockApi";
 
 const DEFAULT_API_BASE_URL = "http://localhost:5191";
 const DEFAULT_API_PREFIX = "/api/v1";
@@ -12,8 +11,6 @@ const DEFAULT_API_PREFIX = "/api/v1";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
 const API_PREFIX = import.meta.env.VITE_API_PREFIX?.trim() || DEFAULT_API_PREFIX;
-const STATIC_MODE = import.meta.env.VITE_STATIC_MODE === "true";
-
 export class ApiError extends Error {
   constructor(message, status, payload) {
     super(message);
@@ -195,10 +192,6 @@ export const apiRequest = async (
     contentType = "application/json",
   } = {}
 ) => {
-  if (STATIC_MODE) {
-    return getStaticMockResponse(path, { method, query, body });
-  }
-
   const finalPath = appendQuery(path, query);
   const requestHeaders = { ...headers };
 
