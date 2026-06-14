@@ -8,6 +8,7 @@ import {
   FolderOpen,
   MapPin,
   RefreshCcw,
+  Search,
   ShieldCheck,
   UserPlus,
   UserRound,
@@ -27,6 +28,7 @@ import {
   acceptAdminOrder,
   assignAdminOrderNotary,
   fetchAdminOrder,
+  fetchAllAdminNotaries,
   fetchAdminOrders,
   fetchEligibleNotaries,
   rejectAdminOrder,
@@ -35,6 +37,19 @@ import {
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
+const toDirectoryNotary = (notary) => ({
+  id: notary.id,
+  name: notary.name,
+  email: notary.email,
+  phone: notary.personalInfo?.phone || "",
+  location: notary.area || notary.address?.state || "Coverage unknown",
+  status: notary.status || "Pending",
+  tags: [
+    ...(notary.ronEligible ? ["RON"] : []),
+    ...((notary.specialties || []).filter(Boolean)),
+  ].slice(0, 3),
+});
+
 const InfoRow = ({ label, value }) => (
   <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-4">
     <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
@@ -42,19 +57,42 @@ const InfoRow = ({ label, value }) => (
   </div>
 );
 
-const AssignModal = ({ open, onClose, notaries, onSubmit, status, title }) => {
+const AssignModal = ({ open, onClose, notaries, eligibleNotaryIds, onSubmit, status, title }) => {
   const [selectedNotaryId, setSelectedNotaryId] = useState("");
   const [notaryOfferAmount, setNotaryOfferAmount] = useState("");
   const [payoutReleaseDays, setPayoutReleaseDays] = useState("7");
   const [assignmentNotes, setAssignmentNotes] = useState("");
+  const [search, setSearch] = useState("");
+
+  const visibleNotaries = useMemo(() => {
+    const eligibleSet = new Set(eligibleNotaryIds);
+    const term = search.trim().toLowerCase();
+
+    return [...notaries]
+      .sort((left, right) => {
+        const leftEligible = eligibleSet.has(left.id) ? 1 : 0;
+        const rightEligible = eligibleSet.has(right.id) ? 1 : 0;
+        if (leftEligible !== rightEligible) {
+          return rightEligible - leftEligible;
+        }
+        return String(left.name || "").localeCompare(String(right.name || ""));
+      })
+      .filter((notary) => {
+        if (!term) return true;
+        return [notary.name, notary.email, notary.phone, notary.location]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(term));
+      });
+  }, [eligibleNotaryIds, notaries, search]);
 
   useEffect(() => {
     if (!open) return;
-    setSelectedNotaryId(notaries[0]?.id || "");
+    setSelectedNotaryId(eligibleNotaryIds[0] || notaries[0]?.id || "");
     setNotaryOfferAmount("");
     setPayoutReleaseDays("7");
     setAssignmentNotes("");
-  }, [open, notaries]);
+    setSearch("");
+  }, [eligibleNotaryIds, notaries, open]);
 
   const handleSubmit = async () => {
     if (!selectedNotaryId) {
@@ -119,12 +157,23 @@ const AssignModal = ({ open, onClose, notaries, onSubmit, status, title }) => {
       </div>
 
       <div className="mt-6 space-y-3">
-        {notaries.length === 0 ? (
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className="h-11 w-full pl-10"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Find notary by name, email, phone, or state"
+          />
+        </label>
+        {visibleNotaries.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-600">
-            No eligible notaries were found for this order yet.
+            {notaries.length === 0
+              ? "No notary records are available yet."
+              : "No notaries match the current search."}
           </div>
         ) : (
-          notaries.map((notary) => (
+          visibleNotaries.map((notary) => (
             <label
               key={notary.id}
               className={`flex cursor-pointer items-start justify-between rounded-lg border p-4 ${
@@ -137,6 +186,11 @@ const AssignModal = ({ open, onClose, notaries, onSubmit, status, title }) => {
                 <p className="font-bold text-slate-900">{notary.name}</p>
                 <p className="text-sm text-slate-600">{notary.location}</p>
                 <p className="mt-1 text-sm text-slate-500">{notary.email}</p>
+                {eligibleNotaryIds.includes(notary.id) ? (
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-primary)]">
+                    Eligible for this order
+                  </p>
+                ) : null}
               </div>
               <input
                 type="radio"
@@ -246,6 +300,8 @@ const OrderDetailsPage = () => {
     activeOrder,
     activeOrderStatus,
     activeOrderError,
+    allNotaries,
+    allNotariesStatus,
     eligibleNotaries,
     eligibleNotariesStatus,
     orderActionStatus,
@@ -288,8 +344,28 @@ const OrderDetailsPage = () => {
 
   const loadEligibleNotaries = async () => {
     if (!id) return;
-    await dispatch(fetchEligibleNotaries(id));
+    await Promise.all([
+      dispatch(fetchEligibleNotaries(id)),
+      dispatch(fetchAllAdminNotaries()),
+    ]);
   };
+
+  const assignableNotaries = useMemo(() => {
+    if (allNotaries.length === 0) {
+      return eligibleNotaries;
+    }
+
+    const eligibleMap = new Map(eligibleNotaries.map((notary) => [notary.id, notary]));
+    return allNotaries
+      .map((notary) => {
+        const directoryNotary = toDirectoryNotary(notary);
+        return {
+          ...directoryNotary,
+          ...(eligibleMap.get(notary.id) || {}),
+        };
+      })
+      .filter((notary) => notary.status !== "Suspended");
+  }, [allNotaries, eligibleNotaries]);
 
   const handleAccept = async () => {
     try {
@@ -597,17 +673,31 @@ const OrderDetailsPage = () => {
       <AssignModal
         open={showAssignModal}
         onClose={() => setShowAssignModal(false)}
-        notaries={eligibleNotaries}
+        notaries={assignableNotaries}
+        eligibleNotaryIds={eligibleNotaries.map((notary) => notary.id)}
         onSubmit={handleAssign}
-        status={orderActionStatus === "loading" || eligibleNotariesStatus === "loading" ? "loading" : "ready"}
+        status={
+          orderActionStatus === "loading" ||
+          eligibleNotariesStatus === "loading" ||
+          allNotariesStatus === "loading"
+            ? "loading"
+            : "ready"
+        }
         title="Assign Notary"
       />
       <AssignModal
         open={showReassignModal}
         onClose={() => setShowReassignModal(false)}
-        notaries={eligibleNotaries}
+        notaries={assignableNotaries}
+        eligibleNotaryIds={eligibleNotaries.map((notary) => notary.id)}
         onSubmit={handleReassign}
-        status={orderActionStatus === "loading" || eligibleNotariesStatus === "loading" ? "loading" : "ready"}
+        status={
+          orderActionStatus === "loading" ||
+          eligibleNotariesStatus === "loading" ||
+          allNotariesStatus === "loading"
+            ? "loading"
+            : "ready"
+        }
         title="Reassign Notary"
       />
       <RejectModal

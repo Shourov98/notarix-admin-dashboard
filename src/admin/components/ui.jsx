@@ -359,14 +359,20 @@ export const Pagination = ({
   );
 };
 
-export const ActionIcons = ({ onPreview }) => (
+export const ActionIcons = ({ onPreview, downloadUrl }) => (
   <div className="flex items-center gap-3 text-slate-500">
     <button type="button" onClick={onPreview} aria-label="View" className="text-[var(--color-brand-primary)]">
       <Eye className="h-4 w-4" />
     </button>
-    <button type="button" aria-label="Download">
-      <Download className="h-4 w-4" />
-    </button>
+    {downloadUrl ? (
+      <a href={downloadUrl} aria-label="Download" className="inline-flex">
+        <Download className="h-4 w-4" />
+      </a>
+    ) : (
+      <button type="button" aria-label="Download" disabled className="opacity-50">
+        <Download className="h-4 w-4" />
+      </button>
+    )}
   </div>
 );
 

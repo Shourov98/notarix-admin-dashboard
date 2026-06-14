@@ -9,6 +9,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   ActionIcons,
   Button,
@@ -24,8 +25,8 @@ import { fetchAdminConsole, selectAdminConsole } from "../../store/adminConsoleS
 import { apiRequest } from "../../services/httpClient";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
-const PreviewPanel = ({ open, onClose, onReject }) => {
-  if (!open) return null;
+const PreviewPanel = ({ open, document, actionStatus, onClose, onReject, onVerify }) => {
+  if (!open || !document) return null;
 
   return (
     <div className="fixed inset-y-0 right-0 z-50 w-full max-w-[430px] border-l border-[var(--color-border)] bg-white shadow-modal">
@@ -35,14 +36,36 @@ const PreviewPanel = ({ open, onClose, onReject }) => {
           <button type="button" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="flex-1 overflow-y-auto p-5">
-          <div className="grid h-72 place-items-center rounded-lg bg-slate-800 text-white">
-            <div className="rounded-full bg-slate-950 px-5 py-3 text-sm">← Page 1 of 4 →</div>
+          <div className="mb-5">
+            <p className="text-lg font-bold text-slate-900">{document.name}</p>
+            <p className="mt-1 text-sm text-slate-600">{document.uploadedBy} • {document.type}</p>
+            <p className="mt-1 text-sm text-slate-500">Status: {document.status}</p>
           </div>
-          <TextArea label="Internal Note / Rejection Reason" placeholder="Type verification notes or rejection reasons here..." className="mt-8" />
+          {document.url ? (
+            <iframe
+              title={document.name}
+              src={document.url}
+              className="h-[520px] w-full rounded-lg border border-[var(--color-border)] bg-white"
+            />
+          ) : (
+            <div className="grid h-72 place-items-center rounded-lg bg-slate-100 text-sm text-slate-500">
+              No uploaded file is available for preview.
+            </div>
+          )}
+          {document.reviewNote ? (
+            <TextArea
+              label="Latest Review Note"
+              value={document.reviewNote}
+              readOnly
+              className="mt-8"
+            />
+          ) : null}
         </div>
         <div className="grid grid-cols-2 gap-3 border-t border-[var(--color-border)] p-5">
-          <Button variant="dangerSolid" icon={XCircle} onClick={onReject}>Reject</Button>
-          <Button variant="success" icon={CheckCircle2}>Verify</Button>
+          <Button variant="dangerSolid" icon={XCircle} onClick={onReject} disabled={actionStatus === "loading"}>Reject</Button>
+          <Button variant="success" icon={CheckCircle2} onClick={onVerify} disabled={actionStatus === "loading" || document.status === "Verified"}>
+            {actionStatus === "loading" ? "Saving..." : "Verify"}
+          </Button>
         </div>
       </div>
     </div>
@@ -53,6 +76,9 @@ const DocumentsPage = () => {
   const dispatch = useAppDispatch();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionStatus, setActionStatus] = useState("idle");
   const [documents, setDocuments] = useState([]);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -89,6 +115,50 @@ const DocumentsPage = () => {
       setLoading(false);
     }
   }, [filters]);
+
+  const updateDocumentStatus = useCallback(async (document, status, reviewNote = "") => {
+    if (!document?.userId || !document?.id) {
+      toast.error("Document record is missing its owner reference.");
+      return;
+    }
+
+    setActionStatus("loading");
+    try {
+      await apiRequest(`/admin/users/${document.userId}/documents/${document.id}/status`, {
+        method: "PATCH",
+        body: { status, reviewNote },
+      });
+      toast.success(`${document.name} marked as ${status.toLowerCase()}.`);
+      await Promise.all([
+        loadDocuments(pagination.page, filters),
+        dispatch(fetchAdminConsole()),
+      ]);
+      setSelectedDocument((current) =>
+        current && current.id === document.id
+          ? { ...current, status, reviewNote }
+          : current
+      );
+      if (status === "Rejected") {
+        setRejectOpen(false);
+        setRejectReason("");
+      }
+    } catch (error) {
+      toast.error(error?.message || `Unable to mark ${document.name} as ${status.toLowerCase()}.`);
+    } finally {
+      setActionStatus("idle");
+    }
+  }, [dispatch, filters, loadDocuments, pagination.page]);
+
+  const openPreview = (document) => {
+    setSelectedDocument(document);
+    setPreviewOpen(true);
+  };
+
+  const openRejectModal = (document) => {
+    setSelectedDocument(document);
+    setRejectReason(document?.reviewNote || "");
+    setRejectOpen(true);
+  };
 
   useEffect(() => {
     dispatch(fetchAdminConsole());
@@ -188,7 +258,7 @@ const DocumentsPage = () => {
             </thead>
             <tbody>
               {documents.map((doc) => (
-                <tr key={doc.name} className="border-t border-slate-100">
+                <tr key={doc.id} className="border-t border-slate-100">
                   <td className="px-5 py-6"><input type="checkbox" defaultChecked={doc.selected} className="h-4 w-4 p-0" /></td>
                   <td className="px-5 py-6">
                     <div className="flex items-center gap-4">
@@ -204,19 +274,35 @@ const DocumentsPage = () => {
                   <td className="px-5 py-6">
                     {doc.status === "Pending" ? (
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="success" icon={CheckCircle2}>Verify</Button>
-                        <Button size="sm" variant="dangerSolid" icon={XCircle} onClick={() => setRejectOpen(true)}>Reject</Button>
-                        <ActionIcons onPreview={() => setPreviewOpen(true)} />
+                        <Button
+                          size="sm"
+                          variant="success"
+                          icon={CheckCircle2}
+                          disabled={actionStatus === "loading"}
+                          onClick={() => updateDocumentStatus(doc, "Verified")}
+                        >
+                          Verify
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="dangerSolid"
+                          icon={XCircle}
+                          disabled={actionStatus === "loading"}
+                          onClick={() => openRejectModal(doc)}
+                        >
+                          Reject
+                        </Button>
+                        <ActionIcons onPreview={() => openPreview(doc)} downloadUrl={doc.downloadUrl} />
                       </div>
                     ) : doc.status === "Rejected" ? (
                       <div className="flex items-center gap-4">
-                        <button type="button" className="font-semibold text-slate-600" onClick={() => setRejectOpen(true)}>View Reason</button>
-                        <ActionIcons onPreview={() => setPreviewOpen(true)} />
+                        <button type="button" className="font-semibold text-slate-600" onClick={() => openRejectModal(doc)}>View Reason</button>
+                        <ActionIcons onPreview={() => openPreview(doc)} downloadUrl={doc.downloadUrl} />
                       </div>
                     ) : (
                       <div className="flex items-center gap-4">
                         <StatusBadge status="Verified" />
-                        <ActionIcons onPreview={() => setPreviewOpen(true)} />
+                        <ActionIcons onPreview={() => openPreview(doc)} downloadUrl={doc.downloadUrl} />
                       </div>
                     )}
                   </td>
@@ -254,11 +340,14 @@ const DocumentsPage = () => {
 
       <PreviewPanel
         open={previewOpen}
+        document={selectedDocument}
+        actionStatus={actionStatus}
         onClose={() => setPreviewOpen(false)}
         onReject={() => {
           setPreviewOpen(false);
-          setRejectOpen(true);
+          openRejectModal(selectedDocument);
         }}
+        onVerify={() => updateDocumentStatus(selectedDocument, "Verified")}
       />
 
       <Modal
@@ -267,12 +356,28 @@ const DocumentsPage = () => {
         title="Reject Document"
         icon={ShieldAlert}
         tone="danger"
-        footer={<div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setRejectOpen(false)}>Cancel</Button><Button variant="dangerSolid" onClick={() => setRejectOpen(false)}>Confirm Reject</Button></div>}
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button
+              variant="dangerSolid"
+              disabled={actionStatus === "loading" || !selectedDocument}
+              onClick={() => updateDocumentStatus(selectedDocument, "Rejected", rejectReason.trim())}
+            >
+              {actionStatus === "loading" ? "Saving..." : "Confirm Reject"}
+            </Button>
+          </div>
+        }
       >
         <div className="mb-6 rounded-lg bg-slate-50 p-5 text-slate-600">
           Please provide a detailed reason for the rejection. This message will be sent directly to the client and recorded in the audit trail.
         </div>
-        <TextArea label="Enter Reason For Rejection" placeholder="e.g., Signature missing on page 4, blurry photo ID..." />
+        <TextArea
+          label="Enter Reason For Rejection"
+          placeholder="e.g., Signature missing on page 4, blurry photo ID..."
+          value={rejectReason}
+          onChange={(event) => setRejectReason(event.target.value)}
+        />
         <label className="mt-4 flex items-center gap-3 text-sm text-slate-600">
           <input type="checkbox" className="h-5 w-5 p-0" />
           Notify client via email immediately

@@ -177,6 +177,47 @@ export const fetchEligibleNotaries = createAsyncThunk(
   }
 );
 
+export const fetchAllAdminNotaries = createAsyncThunk(
+  "adminConsole/fetchAllAdminNotaries",
+  async (_, { rejectWithValue }) => {
+    try {
+      const pageSize = 100;
+      const firstPayload = await apiRequest("/admin/users", {
+        query: {
+          role: "Notary",
+          page: 1,
+          pageSize,
+        },
+      });
+      const firstResult = extractPaginatedResult(firstPayload);
+      const totalPages = Math.max(firstResult.pagination?.totalPages || 1, 1);
+
+      if (totalPages === 1) {
+        return firstResult.items;
+      }
+
+      const remainingPayloads = await Promise.all(
+        Array.from({ length: totalPages - 1 }, (_, index) =>
+          apiRequest("/admin/users", {
+            query: {
+              role: "Notary",
+              page: index + 2,
+              pageSize,
+            },
+          })
+        )
+      );
+
+      return [
+        ...firstResult.items,
+        ...remainingPayloads.flatMap((payload) => extractPaginatedResult(payload).items),
+      ];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load notary directory.");
+    }
+  }
+);
+
 export const acceptAdminOrder = createAsyncThunk(
   "adminConsole/acceptAdminOrder",
   async (orderId, { dispatch, rejectWithValue }) => {
@@ -461,6 +502,9 @@ const adminConsoleSlice = createSlice({
     activeOrder: null,
     activeOrderStatus: "idle",
     activeOrderError: null,
+    allNotaries: [],
+    allNotariesStatus: "idle",
+    allNotariesError: null,
     eligibleNotaries: [],
     eligibleNotariesStatus: "idle",
     eligibleNotariesError: null,
@@ -611,6 +655,20 @@ const adminConsoleSlice = createSlice({
         state.eligibleNotaries = [];
         state.eligibleNotariesStatus = "error";
         state.eligibleNotariesError = action.payload || "Unable to load eligible notaries.";
+      })
+      .addCase(fetchAllAdminNotaries.pending, (state) => {
+        state.allNotariesStatus = "loading";
+        state.allNotariesError = null;
+      })
+      .addCase(fetchAllAdminNotaries.fulfilled, (state, action) => {
+        state.allNotaries = Array.isArray(action.payload) ? action.payload : [];
+        state.allNotariesStatus = "ready";
+        state.allNotariesError = null;
+      })
+      .addCase(fetchAllAdminNotaries.rejected, (state, action) => {
+        state.allNotaries = [];
+        state.allNotariesStatus = "error";
+        state.allNotariesError = action.payload || "Unable to load notary directory.";
       })
       .addCase(approveAdminRequest.pending, (state) => {
         state.requestActionStatus = "loading";

@@ -23,6 +23,7 @@ import {
 } from "../components/ui";
 import {
   assignAdminOrderNotary,
+  fetchAllAdminNotaries,
   fetchAdminConsole,
   fetchAdminOrders,
   fetchEligibleNotaries,
@@ -39,11 +40,25 @@ const ORDER_STATUS_OPTIONS = [
   "Cancelled",
 ];
 
+const toDirectoryNotary = (notary) => ({
+  id: notary.id,
+  name: notary.name,
+  email: notary.email,
+  phone: notary.personalInfo?.phone || "",
+  location: notary.area || notary.address?.state || "Coverage unknown",
+  status: notary.status || "Pending",
+  tags: [
+    ...(notary.ronEligible ? ["RON"] : []),
+    ...((notary.specialties || []).filter(Boolean)),
+  ].slice(0, 3),
+});
+
 const AssignNotaryModal = ({
   open,
   onClose,
   order,
   notaries,
+  eligibleNotaryIds,
   status,
   onSubmit,
 }) => {
@@ -51,14 +66,37 @@ const AssignNotaryModal = ({
   const [notaryOfferAmount, setNotaryOfferAmount] = useState("");
   const [payoutReleaseDays, setPayoutReleaseDays] = useState("7");
   const [assignmentNotes, setAssignmentNotes] = useState("");
+  const [search, setSearch] = useState("");
+
+  const visibleNotaries = useMemo(() => {
+    const eligibleSet = new Set(eligibleNotaryIds);
+    const term = search.trim().toLowerCase();
+
+    return [...notaries]
+      .sort((left, right) => {
+        const leftEligible = eligibleSet.has(left.id) ? 1 : 0;
+        const rightEligible = eligibleSet.has(right.id) ? 1 : 0;
+        if (leftEligible !== rightEligible) {
+          return rightEligible - leftEligible;
+        }
+        return String(left.name || "").localeCompare(String(right.name || ""));
+      })
+      .filter((notary) => {
+        if (!term) return true;
+        return [notary.name, notary.email, notary.phone, notary.location]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(term));
+      });
+  }, [eligibleNotaryIds, notaries, search]);
 
   useEffect(() => {
     if (!open) return;
-    setSelectedNotaryId(notaries[0]?.id || "");
+    setSelectedNotaryId(eligibleNotaryIds[0] || notaries[0]?.id || "");
     setNotaryOfferAmount("");
     setPayoutReleaseDays("7");
     setAssignmentNotes("");
-  }, [open, notaries]);
+    setSearch("");
+  }, [eligibleNotaryIds, notaries, open]);
 
   const handleSubmit = async () => {
     if (!selectedNotaryId) {
@@ -142,12 +180,23 @@ const AssignNotaryModal = ({
       </div>
 
       <div className="mt-6 space-y-3">
-        {notaries.length === 0 ? (
+        <label className="relative block">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className="h-11 w-full pl-10"
+            placeholder="Find notary by name, email, phone, or state"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
+        {visibleNotaries.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-600">
-            No eligible notaries found for this order yet.
+            {notaries.length === 0
+              ? "No notary records are available yet."
+              : "No notaries match the current search."}
           </div>
         ) : (
-          notaries.map((notary) => (
+          visibleNotaries.map((notary) => (
             <label
               key={notary.id}
               className={`flex cursor-pointer items-start justify-between rounded-lg border p-4 ${
@@ -163,6 +212,11 @@ const AssignNotaryModal = ({
                   {notary.email}
                   {notary.phone ? ` • ${notary.phone}` : ""}
                 </p>
+                {eligibleNotaryIds.includes(notary.id) ? (
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-primary)]">
+                    Eligible for this order
+                  </p>
+                ) : null}
                 {Array.isArray(notary.tags) && notary.tags.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {notary.tags.map((tag) => (
@@ -194,6 +248,8 @@ const OrderManagementPage = () => {
     ordersPagination,
     ordersStatus,
     ordersError,
+    allNotaries,
+    allNotariesStatus,
     eligibleNotaries,
     eligibleNotariesStatus,
     orderActionStatus,
@@ -232,8 +288,28 @@ const OrderManagementPage = () => {
 
   const openAssignModal = async (order) => {
     setAssignTarget(order);
-    await dispatch(fetchEligibleNotaries(order.rawId || String(order.id).replace(/^#/, "")));
+    await Promise.all([
+      dispatch(fetchEligibleNotaries(order.rawId || String(order.id).replace(/^#/, ""))),
+      dispatch(fetchAllAdminNotaries()),
+    ]);
   };
+
+  const assignableNotaries = useMemo(() => {
+    if (allNotaries.length === 0) {
+      return eligibleNotaries;
+    }
+
+    const eligibleMap = new Map(eligibleNotaries.map((notary) => [notary.id, notary]));
+    return allNotaries
+      .map((notary) => {
+        const directoryNotary = toDirectoryNotary(notary);
+        return {
+          ...directoryNotary,
+          ...(eligibleMap.get(notary.id) || {}),
+        };
+      })
+      .filter((notary) => notary.status !== "Suspended");
+  }, [allNotaries, eligibleNotaries]);
 
   const handleAssign = async (payload) => {
     if (!assignTarget) return;
@@ -416,8 +492,15 @@ const OrderManagementPage = () => {
         open={Boolean(assignTarget)}
         onClose={() => setAssignTarget(null)}
         order={assignTarget}
-        notaries={eligibleNotaries}
-        status={orderActionStatus === "loading" || eligibleNotariesStatus === "loading" ? "loading" : "ready"}
+        notaries={assignableNotaries}
+        eligibleNotaryIds={eligibleNotaries.map((notary) => notary.id)}
+        status={
+          orderActionStatus === "loading" ||
+          eligibleNotariesStatus === "loading" ||
+          allNotariesStatus === "loading"
+            ? "loading"
+            : "ready"
+        }
         onSubmit={handleAssign}
       />
     </div>
