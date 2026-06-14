@@ -15,7 +15,6 @@ import OrderManagementPage from "../admin/pages/OrderManagementPage";
 import OrderDetailsPage from "../admin/pages/OrderDetailsPage";
 import RonOrderPage from "../admin/pages/RonOrderPage";
 import DocumentsPage from "../admin/pages/DocumentsPage";
-import PaymentsPage from "../admin/pages/PaymentsPage";
 import MessagesPage from "../admin/pages/MessagesPage";
 import ReportsPage from "../admin/pages/ReportsPage";
 import AuditLogsPage from "../admin/pages/AuditLogsPage";
@@ -48,7 +47,6 @@ export const router = createBrowserRouter([
           { path: "orders/:id", element: <OrderDetailsPage /> },
           { path: "orders/ron-session", element: <RonOrderPage /> },
           { path: "documents", element: <DocumentsPage /> },
-          { path: "payments", element: <PaymentsPage /> },
           { path: "messages", element: <MessagesPage /> },
           { path: "reports", element: <ReportsPage /> },
           { path: "audit-logs", element: <AuditLogsPage /> },

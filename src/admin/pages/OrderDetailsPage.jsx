@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { apiRequest } from "../../services/httpClient";
 import {
   Button,
   Card,
@@ -26,6 +27,7 @@ import {
   acceptAdminOrder,
   assignAdminOrderNotary,
   fetchAdminOrder,
+  fetchAdminOrders,
   fetchEligibleNotaries,
   rejectAdminOrder,
   reassignAdminOrderNotary,
@@ -194,6 +196,49 @@ const RejectModal = ({ open, onClose, onSubmit, status }) => {
   );
 };
 
+const RejectDocumentModal = ({ open, onClose, onSubmit, status, documentName }) => {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setReason("");
+    }
+  }, [open]);
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) {
+      toast.error("Add a rejection reason for this document.");
+      return;
+    }
+
+    await onSubmit(reason.trim());
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Reject Order Document"
+      subtitle={documentName ? `This note will be saved for ${documentName}.` : "This note will be saved on the rejected document."}
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="dangerSolid" onClick={handleSubmit} disabled={status === "loading"}>
+            {status === "loading" ? "Saving..." : "Reject Document"}
+          </Button>
+        </div>
+      }
+    >
+      <textarea
+        className="min-h-[120px] w-full rounded-lg border border-[var(--color-border)] px-3 py-3"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Explain why this uploaded document is being rejected."
+      />
+    </Modal>
+  );
+};
+
 const OrderDetailsPage = () => {
   const { id = "" } = useParams();
   const dispatch = useAppDispatch();
@@ -209,6 +254,8 @@ const OrderDetailsPage = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [documentActionStatus, setDocumentActionStatus] = useState("ready");
+  const [documentRejectTarget, setDocumentRejectTarget] = useState(null);
 
   useEffect(() => {
     if (id) {
@@ -219,6 +266,16 @@ const OrderDetailsPage = () => {
   const canReview = useMemo(
     () => activeOrder?.workflowStatus === "Pending Admin Review",
     [activeOrder]
+  );
+  const hasOrderDocuments = useMemo(
+    () => Array.isArray(activeOrder?.documents) && activeOrder.documents.length > 0,
+    [activeOrder]
+  );
+  const allOrderDocumentsVerified = useMemo(
+    () =>
+      hasOrderDocuments &&
+      (activeOrder?.documents || []).every((document) => document.status === "Verified"),
+    [activeOrder, hasOrderDocuments]
   );
   const canAssign = useMemo(
     () => ["Accepted By Admin", "Needs Reassignment", "Assigned"].includes(activeOrder?.workflowStatus || "") || activeOrder?.status === "Pending",
@@ -270,6 +327,26 @@ const OrderDetailsPage = () => {
       setShowReassignModal(false);
     } catch (error) {
       toast.error(error || "Unable to reassign notary.");
+    }
+  };
+
+  const handleDocumentStatusUpdate = async (documentId, status, reviewNote = "") => {
+    try {
+      setDocumentActionStatus("loading");
+      await apiRequest(`/admin/orders/${id}/documents/${documentId}/status`, {
+        method: "PATCH",
+        body: {
+          status,
+          reviewNote,
+        },
+      });
+      await dispatch(fetchAdminOrder(id)).unwrap();
+      await dispatch(fetchAdminOrders()).unwrap();
+      toast.success(`Document marked as ${status.toLowerCase()}.`);
+    } catch (error) {
+      toast.error(error?.message || `Unable to mark document as ${status.toLowerCase()}.`);
+    } finally {
+      setDocumentActionStatus("ready");
     }
   };
 
@@ -350,24 +427,86 @@ const OrderDetailsPage = () => {
                 <p className="text-sm text-slate-600">No client documents uploaded yet.</p>
               ) : (
                 activeOrder.documents.map((document) => (
-                  <div key={document.id} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-slate-50 p-4">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-[var(--color-brand-primary)]" />
-                      <div>
-                        <p className="font-semibold text-slate-900">{document.name}</p>
-                        <p className="text-xs text-slate-500">{document.mimeType || "Uploaded file"}</p>
+                  <div key={document.id} className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-[var(--color-brand-primary)]" />
+                        <div>
+                          <p className="font-semibold text-slate-900">{document.name}</p>
+                          <p className="text-xs text-slate-500">{document.mimeType || "Uploaded file"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={document.status || "Pending"} />
+                        {document.url ? (
+                          <a href={`http://localhost:5191${document.url}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
+                            Open
+                          </a>
+                        ) : null}
                       </div>
                     </div>
-                    {document.url ? (
-                      <a href={`http://localhost:5191${document.url}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
-                        Open
-                      </a>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <Button
+                        size="sm"
+                        icon={ShieldCheck}
+                        onClick={() => handleDocumentStatusUpdate(document.id, "Verified")}
+                        disabled={documentActionStatus === "loading" || document.status === "Verified"}
+                      >
+                        Verify
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        icon={XCircle}
+                        onClick={() => setDocumentRejectTarget({ id: document.id, name: document.name })}
+                        disabled={documentActionStatus === "loading" || document.status === "Rejected"}
+                      >
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleDocumentStatusUpdate(document.id, "Pending")}
+                        disabled={documentActionStatus === "loading" || document.status === "Pending"}
+                      >
+                        Mark Pending
+                      </Button>
+                    </div>
+                    {document.reviewNote ? (
+                      document.status === "Rejected" ? (
+                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-red-600">
+                            Rejection Reason
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-red-700">
+                            {document.reviewNote}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                            Review Note
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-slate-600">
+                            {document.reviewNote}
+                          </p>
+                        </div>
+                      )
                     ) : null}
                   </div>
                 ))
               )}
             </div>
           </Card>
+
+          {!allOrderDocumentsVerified ? (
+            <Card className="border-amber-200 bg-amber-50 p-6">
+              <SectionTitle icon={ShieldCheck} title="Document Review Required" />
+              <p className="text-sm leading-7 text-amber-800">
+                Admin must verify all client-uploaded order documents before accepting the order or assigning any notary.
+              </p>
+            </Card>
+          ) : null}
         </div>
 
         <aside className="space-y-7">
@@ -385,7 +524,7 @@ const OrderDetailsPage = () => {
             <div className="space-y-3">
               {canReview ? (
                 <>
-                  <Button className="w-full" icon={CheckCircle2} onClick={handleAccept} disabled={orderActionStatus === "loading"}>
+                  <Button className="w-full" icon={CheckCircle2} onClick={handleAccept} disabled={orderActionStatus === "loading" || !allOrderDocumentsVerified}>
                     Accept Order
                   </Button>
                   <Button className="w-full" variant="dangerSolid" icon={XCircle} onClick={() => setShowRejectModal(true)} disabled={orderActionStatus === "loading"}>
@@ -399,6 +538,7 @@ const OrderDetailsPage = () => {
                   className="w-full"
                   variant="secondary"
                   icon={UserPlus}
+                  disabled={!allOrderDocumentsVerified}
                   onClick={async () => {
                     await loadEligibleNotaries();
                     setShowAssignModal(true);
@@ -475,6 +615,17 @@ const OrderDetailsPage = () => {
         onClose={() => setShowRejectModal(false)}
         onSubmit={handleReject}
         status={orderActionStatus}
+      />
+      <RejectDocumentModal
+        open={Boolean(documentRejectTarget)}
+        onClose={() => setDocumentRejectTarget(null)}
+        status={documentActionStatus}
+        documentName={documentRejectTarget?.name}
+        onSubmit={async (reason) => {
+          if (!documentRejectTarget?.id) return;
+          await handleDocumentStatusUpdate(documentRejectTarget.id, "Rejected", reason);
+          setDocumentRejectTarget(null);
+        }}
       />
     </div>
   );

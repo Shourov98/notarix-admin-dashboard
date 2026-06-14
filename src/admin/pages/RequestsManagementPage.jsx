@@ -70,7 +70,17 @@ const RequestDetailsModal = ({
 }) => {
   if (!request) return null;
 
-  const canReview = request.status === "Pending";
+  const normalizedStatus = String(request.status || "").toLowerCase();
+  const isPending = normalizedStatus === "pending";
+  const isApproved = normalizedStatus === "approved";
+  const isRejected = normalizedStatus === "rejected";
+  const canReview = isPending;
+
+  const statusSummary = isApproved
+    ? "This request has already been approved. Review actions are now locked."
+    : isRejected
+      ? "This request has already been declined. Review actions are now locked."
+      : "This request is still pending review. You can approve or decline it below.";
 
   return (
     <Modal
@@ -88,23 +98,36 @@ const RequestDetailsModal = ({
           >
             Close
           </Button>
-          <Button
-            variant="danger"
-            icon={ShieldX}
-            className="min-w-[170px]"
-            onClick={onReject}
-            disabled={!canReview || loading}
-          >
-            {loading ? "Updating..." : "Decline Request"}
-          </Button>
-          <Button
-            icon={ShieldCheck}
-            className="min-w-[170px]"
-            onClick={onApprove}
-            disabled={!canReview || loading}
-          >
-            {loading ? "Updating..." : "Approve Request"}
-          </Button>
+          {isPending ? (
+            <>
+              <Button
+                variant="danger"
+                icon={ShieldX}
+                className="min-w-[170px]"
+                onClick={onReject}
+                disabled={loading}
+              >
+                {loading ? "Updating..." : "Decline Request"}
+              </Button>
+              <Button
+                icon={ShieldCheck}
+                className="min-w-[170px]"
+                onClick={onApprove}
+                disabled={loading}
+              >
+                {loading ? "Updating..." : "Approve Request"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant={isApproved ? "secondary" : "danger"}
+              icon={isApproved ? ShieldCheck : ShieldX}
+              className="min-w-[190px]"
+              disabled
+            >
+              {isApproved ? "Already Approved" : "Already Declined"}
+            </Button>
+          )}
         </div>
       }
     >
@@ -132,6 +155,18 @@ const RequestDetailsModal = ({
             />
             <StatusBadge status={request.status} />
           </div>
+        </div>
+
+        <div
+          className={`rounded-2xl border px-5 py-4 text-sm leading-6 ${
+            isPending
+              ? "border-amber-200 bg-amber-50 text-amber-800"
+              : isApproved
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
+          {statusSummary}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
@@ -168,12 +203,14 @@ const RequestDetailsModal = ({
           </div>
         ) : null}
 
-        <TextArea
-          label="Decline Reason"
-          value={rejectionReason}
-          onChange={(event) => onChangeReason(event.target.value)}
-          placeholder="Provide a clear reason if you need to decline this request."
-        />
+        {isPending ? (
+          <TextArea
+            label="Decline Reason"
+            value={rejectionReason}
+            onChange={(event) => onChangeReason(event.target.value)}
+            placeholder="Provide a clear reason if you need to decline this request."
+          />
+        ) : null}
       </div>
     </Modal>
   );
