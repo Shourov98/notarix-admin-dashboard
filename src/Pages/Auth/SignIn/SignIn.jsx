@@ -128,7 +128,7 @@ const SignIn = () => {
           </Link>
 
           <button
-            className="h-14 w-full rounded-[14px] bg-[#4056f4] text-[1.9rem] font-medium text-white transition hover:bg-[#3148eb] disabled:cursor-not-allowed disabled:opacity-70"
+            className="h-14 w-full rounded-[14px] bg-[#4056f4] px-6 text-lg font-semibold leading-none tracking-[-0.02em] text-white transition hover:bg-[#3148eb] disabled:cursor-not-allowed disabled:opacity-70"
             type="submit"
             disabled={loading}
           >
