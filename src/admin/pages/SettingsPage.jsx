@@ -34,8 +34,14 @@ import {
   activateAdmin,
   createAdmin,
   fetchAdmins,
+  fetchCompanySettings,
+  fetchNotificationPreferences,
+  fetchSecuritySettings,
+  revokeSecuritySession,
   selectAdminConsole,
   suspendAdmin,
+  updateCompanySettings,
+  updateNotificationPreferences,
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { toast } from "sonner";
@@ -111,17 +117,119 @@ const LiveSettingsNotice = ({ title, description }) => (
   </Card>
 );
 
-const CompanySettings = () => (
-  <SettingsShell
-    title="Company Settings"
-    description="Organization-level settings should only appear when backed by real platform configuration."
-  >
-    <LiveSettingsNotice
-      title="Company settings are not connected yet"
-      description="This dashboard does not currently have a live backend endpoint for organization profile, branding, or office settings. The old sample company data has been removed so this section stays honest."
-    />
-  </SettingsShell>
-);
+const CompanySettings = () => {
+  const dispatch = useAppDispatch();
+  const { companySettings, companySettingsStatus, companySettingsError } =
+    useAppSelector(selectAdminConsole);
+  const [form, setForm] = useState(null);
+
+  useEffect(() => {
+    dispatch(fetchCompanySettings());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (companySettings && !form) {
+      setForm({
+        name: companySettings.name || "",
+        legalName: companySettings.legalName || "",
+        taxId: companySettings.taxId || "",
+        supportEmail: companySettings.supportEmail || "",
+        supportPhone: companySettings.supportPhone || "",
+        address: { ...(companySettings.address || {}) },
+        branding: { ...(companySettings.branding || {}) },
+      });
+    }
+  }, [companySettings, form]);
+
+  const update = (path, value) =>
+    setForm((current) => {
+      if (!current) return current;
+      const next = { ...current };
+      const [head, ...rest] = path.split(".");
+      if (rest.length === 0) {
+        next[head] = value;
+      } else {
+        next[head] = { ...(next[head] || {}), [rest.join(".")]: value };
+      }
+      return next;
+    });
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form) return;
+    const result = await dispatch(updateCompanySettings(form));
+    if (updateCompanySettings.fulfilled.match(result)) {
+      toast.success("Company settings saved.");
+    } else {
+      toast.error(result.payload || "Unable to save company settings.");
+    }
+  };
+
+  if (!form) {
+    return (
+      <SettingsShell
+        title="Company Settings"
+        description="Organization-level settings backed by the live admin settings endpoint."
+      >
+        <Card className="p-8 text-slate-500">
+          {companySettingsStatus === "loading" ? "Loading..." : companySettingsError || "No data."}
+        </Card>
+      </SettingsShell>
+    );
+  }
+
+  return (
+    <SettingsShell
+      title="Company Settings"
+      description="Organization-level settings backed by the live admin settings endpoint."
+    >
+      <form onSubmit={handleSubmit}>
+        <Card className="space-y-7 p-8">
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field label="Display Name" value={form.name} onChange={(e) => update("name", e.target.value)} />
+            <Field label="Legal Name" value={form.legalName} onChange={(e) => update("legalName", e.target.value)} />
+            <Field label="Tax ID" value={form.taxId} onChange={(e) => update("taxId", e.target.value)} />
+            <Field
+              label="Support Email"
+              type="email"
+              value={form.supportEmail}
+              onChange={(e) => update("supportEmail", e.target.value)}
+            />
+            <Field
+              label="Support Phone"
+              value={form.supportPhone}
+              onChange={(e) => update("supportPhone", e.target.value)}
+            />
+          </div>
+          <div>
+            <SectionTitle icon={MapPin} title="Office Address" />
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="Street" value={form.address?.line1 || ""} onChange={(e) => update("address.line1", e.target.value)} />
+              <Field label="Suite / Unit" value={form.address?.line2 || ""} onChange={(e) => update("address.line2", e.target.value)} />
+              <Field label="City" value={form.address?.city || ""} onChange={(e) => update("address.city", e.target.value)} />
+              <Field label="State" value={form.address?.state || ""} onChange={(e) => update("address.state", e.target.value)} />
+              <Field label="ZIP" value={form.address?.zip || ""} onChange={(e) => update("address.zip", e.target.value)} />
+              <Field label="Country" value={form.address?.country || ""} onChange={(e) => update("address.country", e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <SectionTitle icon={Building2} title="Branding" />
+            <div className="grid gap-5 md:grid-cols-2">
+              <Field label="Primary Color" value={form.branding?.primaryColor || ""} onChange={(e) => update("branding.primaryColor", e.target.value)} />
+              <Field label="Accent Color" value={form.branding?.accentColor || ""} onChange={(e) => update("branding.accentColor", e.target.value)} />
+              <Field label="Logo URL" value={form.branding?.logoUrl || ""} onChange={(e) => update("branding.logoUrl", e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit" icon={Save} disabled={companySettingsStatus === "loading"}>
+              {companySettingsStatus === "loading" ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </Card>
+      </form>
+    </SettingsShell>
+  );
+};
 
 const ProfileSettings = () => {
   const { currentAdmin } = useAppSelector(selectAdminConsole);
@@ -159,23 +267,164 @@ const ProfileSettings = () => {
   );
 };
 
-const NotificationSettings = () => (
-  <SettingsShell title="Notification Settings" description="Notification policy controls should only appear when backed by live admin settings.">
-    <LiveSettingsNotice
-      title="Admin notification settings are not connected yet"
-      description="The previous notification toggles were hardcoded. They have been removed until the dashboard has real persisted admin notification preferences."
-    />
-  </SettingsShell>
-);
+const NotificationSettings = () => {
+  const dispatch = useAppDispatch();
+  const { notificationPreferences, notificationPreferencesStatus, notificationPreferencesError } =
+    useAppSelector(selectAdminConsole);
+  const [form, setForm] = useState(null);
 
-const SecuritySettings = () => (
-  <SettingsShell title="Security Settings" description="Security preferences should only display live account and session data.">
-    <LiveSettingsNotice
-      title="Admin security settings are not connected yet"
-      description="The old security page showed made-up devices, sessions, 2FA state, and audit events. Those sample rows have been removed until the admin backend exposes real security settings and session records."
-    />
-  </SettingsShell>
-);
+  useEffect(() => {
+    dispatch(fetchNotificationPreferences());
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (notificationPreferences && !form) {
+      setForm({ ...notificationPreferences });
+    }
+  }, [notificationPreferences, form]);
+
+  const toggle = (key) =>
+    setForm((current) => (current ? { ...current, [key]: !current[key] } : current));
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!form) return;
+    const result = await dispatch(updateNotificationPreferences(form));
+    if (updateNotificationPreferences.fulfilled.match(result)) {
+      toast.success("Notification preferences saved.");
+    } else {
+      toast.error(result.payload || "Unable to save preferences.");
+    }
+  };
+
+  if (!form) {
+    return (
+      <SettingsShell title="Notification Settings" description="Channel and topic preferences are stored per admin.">
+        <Card className="p-8 text-slate-500">
+          {notificationPreferencesStatus === "loading" ? "Loading..." : notificationPreferencesError || "No data."}
+        </Card>
+      </SettingsShell>
+    );
+  }
+
+  return (
+    <SettingsShell title="Notification Settings" description="Channel and topic preferences are stored per admin.">
+      <form onSubmit={handleSubmit}>
+        <Card className="space-y-5 p-8">
+          <CheckboxLine
+            checked={Boolean(form.email)}
+            onChange={() => toggle("email")}
+            label="Email notifications"
+            description="Receive order and message alerts via email."
+          />
+          <CheckboxLine
+            checked={Boolean(form.inApp)}
+            onChange={() => toggle("inApp")}
+            label="In-app notifications"
+            description="Show notifications in the dashboard bell."
+          />
+          <CheckboxLine
+            checked={Boolean(form.orderEvents)}
+            onChange={() => toggle("orderEvents")}
+            label="Order events"
+            description="Status changes, assignments, and completion alerts."
+          />
+          <CheckboxLine
+            checked={Boolean(form.messageEvents)}
+            onChange={() => toggle("messageEvents")}
+            label="Message events"
+            description="Alerts for new messages and replies."
+          />
+          <CheckboxLine
+            checked={Boolean(form.weeklyDigest)}
+            onChange={() => toggle("weeklyDigest")}
+            label="Weekly digest"
+            description="A summary email every Monday."
+          />
+          <div className="flex justify-end">
+            <Button type="submit" icon={Save} disabled={notificationPreferencesStatus === "loading"}>
+              {notificationPreferencesStatus === "loading" ? "Saving..." : "Save Preferences"}
+            </Button>
+          </div>
+        </Card>
+      </form>
+    </SettingsShell>
+  );
+};
+
+const SecuritySettings = () => {
+  const dispatch = useAppDispatch();
+  const { securitySettings, securitySettingsStatus, securitySettingsError } =
+    useAppSelector(selectAdminConsole);
+
+  useEffect(() => {
+    dispatch(fetchSecuritySettings());
+  }, [dispatch]);
+
+  const handleRevoke = async (session) => {
+    const result = await dispatch(revokeSecuritySession(session.id));
+    if (revokeSecuritySession.fulfilled.match(result)) {
+      toast.success("Session revoked.");
+      dispatch(fetchSecuritySettings());
+    } else {
+      toast.error(result.payload || "Unable to revoke session.");
+    }
+  };
+
+  return (
+    <SettingsShell
+      title="Security Settings"
+      description="Active sessions and account security state for the current admin."
+    >
+      <Card className="space-y-5 p-8">
+        <div className="grid gap-5 md:grid-cols-2">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Password last changed</p>
+            <p className="mt-1 text-sm text-slate-700">
+              {securitySettings?.passwordLastChanged
+                ? new Date(securitySettings.passwordLastChanged).toLocaleString()
+                : "Not available"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Two-factor authentication</p>
+            <p className="mt-1 text-sm text-slate-700">
+              {securitySettings?.twoFactorEnabled ? "Enabled" : "Disabled"}
+            </p>
+          </div>
+        </div>
+        <div>
+          <SectionTitle icon={LockKeyhole} title="Active Sessions" />
+          {securitySettingsStatus === "loading" ? (
+            <p className="text-sm text-slate-500">Loading sessions...</p>
+          ) : securitySettingsError ? (
+            <p className="text-sm text-red-600">{securitySettingsError}</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {(securitySettings?.sessions || []).map((session) => (
+                <li key={session.id} className="flex items-center justify-between py-4">
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{session.device}</p>
+                    <p className="text-xs text-slate-500">
+                      {session.ip} · last active {new Date(session.lastActive).toLocaleString()}
+                    </p>
+                  </div>
+                  {session.current ? (
+                    <StatusBadge status="Current" />
+                  ) : (
+                    <Button variant="danger" size="sm" onClick={() => handleRevoke(session)}>
+                      Revoke
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </Card>
+    </SettingsShell>
+  );
+};
 
 const AddAdminModal = ({ open, onClose }) => {
   const dispatch = useAppDispatch();

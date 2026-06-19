@@ -119,3 +119,49 @@ export const resetAdminPassword = async ({ email, newPassword }) => {
     );
   }
 };
+
+/**
+ * POST /admin/auth/logout
+ * Body: { refreshToken }
+ */
+export const logoutAdmin = async ({ refreshToken } = {}) => {
+  try {
+    return await apiRequest("/admin/auth/logout", {
+      method: "POST",
+      body: refreshToken ? { refreshToken } : {},
+    });
+  } catch (error) {
+    // Logout must never block local cleanup — rethrow only after caller clears session.
+    throw new Error(extractApiErrorMessage(error?.payload) || error?.message || "Logout failed.");
+  }
+};
+
+/**
+ * GET /auth/me
+ */
+export const getCurrentAdmin = async () => {
+  try {
+    const payload = await apiRequest("/auth/me");
+    return payload?.data || payload;
+  } catch (error) {
+    throw new Error(extractApiErrorMessage(error?.payload) || error?.message || "Unable to load admin profile.");
+  }
+};
+
+/**
+ * PATCH /auth/reset-password
+ * Body: { new_password }
+ * First-login password reset for an authenticated admin whose passwordResetRequired is true.
+ */
+export const firstLoginResetAdmin = async ({ newPassword }) => {
+  try {
+    return await apiRequest("/auth/reset-password", {
+      method: "PATCH",
+      body: { new_password: newPassword },
+    });
+  } catch (error) {
+    throw new Error(
+      extractApiErrorMessage(error?.payload) || error?.message || "Unable to reset password."
+    );
+  }
+};

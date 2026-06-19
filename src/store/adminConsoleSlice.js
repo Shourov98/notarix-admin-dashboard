@@ -48,7 +48,65 @@ const normalizeConsoleData = (payload) => ({
       : null,
 });
 
-const baseState = normalizeConsoleData(null);
+const baseState = () => {
+  const seeded = normalizeConsoleData(null);
+  return {
+    ...seeded,
+    activeUser: null,
+    activeUserStatus: "idle",
+    activeUserError: null,
+    requests: [],
+    requestsPagination: emptyPagination,
+    requestsStatus: "idle",
+    requestsError: null,
+    requestActionStatus: "idle",
+    ordersStatus: "idle",
+    ordersError: null,
+    ordersPagination: emptyPagination,
+    usersStatus: "idle",
+    usersError: null,
+    usersPagination: emptyPagination,
+    documentsStatus: "idle",
+    documentsError: null,
+    documentsPagination: emptyPagination,
+    activeOrder: null,
+    activeOrderStatus: "idle",
+    activeOrderError: null,
+    allNotaries: [],
+    allNotariesStatus: "idle",
+    allNotariesError: null,
+    eligibleNotaries: [],
+    eligibleNotariesStatus: "idle",
+    eligibleNotariesError: null,
+    orderActionStatus: "idle",
+    orderActionError: null,
+    admins: [],
+    adminsPagination: emptyPagination,
+    adminsStatus: "idle",
+    adminsError: null,
+    createAdminStatus: "idle",
+    createAdminError: null,
+    companySettings: null,
+    companySettingsStatus: "idle",
+    companySettingsError: null,
+    notificationPreferences: null,
+    notificationPreferencesStatus: "idle",
+    notificationPreferencesError: null,
+    securitySettings: null,
+    securitySettingsStatus: "idle",
+    securitySettingsError: null,
+    activeTicket: null,
+    activeTicketStatus: "idle",
+    activeTicketError: null,
+    ticketsStatus: "idle",
+    ticketsError: null,
+    ticketActionStatus: "idle",
+    ticketActionError: null,
+    supportTickets: [],
+  };
+};
+
+const initialBaseState = baseState();
 
 export const fetchAdminRequests = createAsyncThunk(
   "adminConsole/fetchAdminRequests",
@@ -472,10 +530,147 @@ export const updateUserDocumentStatus = createAsyncThunk(
   }
 );
 
+export const fetchSupportTickets = createAsyncThunk(
+  "adminConsole/fetchSupportTickets",
+  async (filters = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/support/tickets", { query: filters });
+      const data = payload?.data || payload;
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load support tickets.");
+    }
+  }
+);
+
+export const fetchSupportTicket = createAsyncThunk(
+  "adminConsole/fetchSupportTicket",
+  async (ticketId, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/support/tickets/${ticketId}`);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load support ticket.");
+    }
+  }
+);
+
+export const createSupportTicket = createAsyncThunk(
+  "adminConsole/createSupportTicket",
+  async (body, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/support/tickets", {
+        method: "POST",
+        body,
+      });
+      await dispatch(fetchSupportTickets());
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to create support ticket.");
+    }
+  }
+);
+
+export const updateSupportTicket = createAsyncThunk(
+  "adminConsole/updateSupportTicket",
+  async ({ ticketId, patch }, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/support/tickets/${ticketId}`, {
+        method: "PATCH",
+        body: patch,
+      });
+      await dispatch(fetchSupportTickets());
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update support ticket.");
+    }
+  }
+);
+
+export const fetchCompanySettings = createAsyncThunk(
+  "adminConsole/fetchCompanySettings",
+  async (_, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/settings/company");
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load company settings.");
+    }
+  }
+);
+
+export const updateCompanySettings = createAsyncThunk(
+  "adminConsole/updateCompanySettings",
+  async (patch, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/settings/company", {
+        method: "PATCH",
+        body: patch,
+      });
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update company settings.");
+    }
+  }
+);
+
+export const fetchNotificationPreferences = createAsyncThunk(
+  "adminConsole/fetchNotificationPreferences",
+  async (_, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/settings/notifications");
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load notification preferences.");
+    }
+  }
+);
+
+export const updateNotificationPreferences = createAsyncThunk(
+  "adminConsole/updateNotificationPreferences",
+  async (patch, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/settings/notifications", {
+        method: "PATCH",
+        body: patch,
+      });
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update notification preferences.");
+    }
+  }
+);
+
+export const fetchSecuritySettings = createAsyncThunk(
+  "adminConsole/fetchSecuritySettings",
+  async (_, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/settings/security");
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load security settings.");
+    }
+  }
+);
+
+export const revokeSecuritySession = createAsyncThunk(
+  "adminConsole/revokeSecuritySession",
+  async (sessionId, { rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/settings/security/sessions/${sessionId}/revoke`, {
+        method: "POST",
+      });
+      return sessionId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to revoke session.");
+    }
+  }
+);
+
 const adminConsoleSlice = createSlice({
   name: "adminConsole",
   initialState: {
-    ...baseState,
+    ...initialBaseState,
     status: "idle",
     error: null,
     createClientStatus: "idle",
@@ -517,7 +712,11 @@ const adminConsoleSlice = createSlice({
     createAdminStatus: "idle",
     createAdminError: null,
   },
-  reducers: {},
+  reducers: {
+    clearSession() {
+      return baseState();
+    },
+  },
   extraReducers: (builder) => {
     builder
       .addCase(fetchAdminConsole.pending, (state) => {
@@ -530,7 +729,7 @@ const adminConsoleSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchAdminConsole.rejected, (state, action) => {
-        Object.assign(state, baseState);
+        Object.assign(state, baseState());
         state.status = "error";
         state.error = action.payload || "Unable to load admin console.";
       })
@@ -787,9 +986,124 @@ const adminConsoleSlice = createSlice({
       .addCase(activateAdmin.rejected, (state, action) => {
         state.adminsStatus = "error";
         state.adminsError = action.payload || "Unable to activate admin.";
+      })
+      .addCase(fetchSupportTickets.pending, (state) => {
+        state.ticketsStatus = "loading";
+        state.ticketsError = null;
+      })
+      .addCase(fetchSupportTickets.fulfilled, (state, action) => {
+        state.supportTickets = Array.isArray(action.payload) ? action.payload : [];
+        state.ticketsStatus = "ready";
+        state.ticketsError = null;
+      })
+      .addCase(fetchSupportTickets.rejected, (state, action) => {
+        state.ticketsStatus = "error";
+        state.ticketsError = action.payload || "Unable to load support tickets.";
+      })
+      .addCase(fetchSupportTicket.pending, (state) => {
+        state.activeTicketStatus = "loading";
+        state.activeTicketError = null;
+      })
+      .addCase(fetchSupportTicket.fulfilled, (state, action) => {
+        state.activeTicket = action.payload || null;
+        state.activeTicketStatus = "ready";
+        state.activeTicketError = null;
+      })
+      .addCase(fetchSupportTicket.rejected, (state, action) => {
+        state.activeTicket = null;
+        state.activeTicketStatus = "error";
+        state.activeTicketError = action.payload || "Unable to load support ticket.";
+      })
+      .addCase(createSupportTicket.pending, (state) => {
+        state.ticketActionStatus = "loading";
+        state.ticketActionError = null;
+      })
+      .addCase(createSupportTicket.fulfilled, (state) => {
+        state.ticketActionStatus = "ready";
+        state.ticketActionError = null;
+      })
+      .addCase(createSupportTicket.rejected, (state, action) => {
+        state.ticketActionStatus = "error";
+        state.ticketActionError = action.payload || "Unable to create support ticket.";
+      })
+      .addCase(updateSupportTicket.pending, (state) => {
+        state.ticketActionStatus = "loading";
+        state.ticketActionError = null;
+      })
+      .addCase(updateSupportTicket.fulfilled, (state) => {
+        state.ticketActionStatus = "ready";
+        state.ticketActionError = null;
+      })
+      .addCase(updateSupportTicket.rejected, (state, action) => {
+        state.ticketActionStatus = "error";
+        state.ticketActionError = action.payload || "Unable to update support ticket.";
+      })
+      .addCase(fetchCompanySettings.pending, (state) => {
+        state.companySettingsStatus = "loading";
+        state.companySettingsError = null;
+      })
+      .addCase(fetchCompanySettings.fulfilled, (state, action) => {
+        state.companySettings = action.payload || null;
+        state.companySettingsStatus = "ready";
+        state.companySettingsError = null;
+      })
+      .addCase(fetchCompanySettings.rejected, (state, action) => {
+        state.companySettingsStatus = "error";
+        state.companySettingsError = action.payload || "Unable to load company settings.";
+      })
+      .addCase(updateCompanySettings.pending, (state) => {
+        state.companySettingsStatus = "loading";
+      })
+      .addCase(updateCompanySettings.fulfilled, (state, action) => {
+        state.companySettings = action.payload || state.companySettings;
+        state.companySettingsStatus = "ready";
+      })
+      .addCase(updateCompanySettings.rejected, (state, action) => {
+        state.companySettingsStatus = "error";
+        state.companySettingsError = action.payload || "Unable to update company settings.";
+      })
+      .addCase(fetchNotificationPreferences.pending, (state) => {
+        state.notificationPreferencesStatus = "loading";
+        state.notificationPreferencesError = null;
+      })
+      .addCase(fetchNotificationPreferences.fulfilled, (state, action) => {
+        state.notificationPreferences = action.payload || null;
+        state.notificationPreferencesStatus = "ready";
+        state.notificationPreferencesError = null;
+      })
+      .addCase(fetchNotificationPreferences.rejected, (state, action) => {
+        state.notificationPreferencesStatus = "error";
+        state.notificationPreferencesError =
+          action.payload || "Unable to load notification preferences.";
+      })
+      .addCase(updateNotificationPreferences.pending, (state) => {
+        state.notificationPreferencesStatus = "loading";
+      })
+      .addCase(updateNotificationPreferences.fulfilled, (state, action) => {
+        state.notificationPreferences = action.payload || state.notificationPreferences;
+        state.notificationPreferencesStatus = "ready";
+      })
+      .addCase(updateNotificationPreferences.rejected, (state, action) => {
+        state.notificationPreferencesStatus = "error";
+        state.notificationPreferencesError =
+          action.payload || "Unable to update notification preferences.";
+      })
+      .addCase(fetchSecuritySettings.pending, (state) => {
+        state.securitySettingsStatus = "loading";
+        state.securitySettingsError = null;
+      })
+      .addCase(fetchSecuritySettings.fulfilled, (state, action) => {
+        state.securitySettings = action.payload || null;
+        state.securitySettingsStatus = "ready";
+        state.securitySettingsError = null;
+      })
+      .addCase(fetchSecuritySettings.rejected, (state, action) => {
+        state.securitySettingsStatus = "error";
+        state.securitySettingsError = action.payload || "Unable to load security settings.";
       });
   },
 });
 
 export const adminConsoleReducer = adminConsoleSlice.reducer;
+export const { clearSession } = adminConsoleSlice.actions;
 export const selectAdminConsole = (state) => state.adminConsole;
