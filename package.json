@@ -1,13 +1,17 @@
 {
-  "name": "notarix-admin-dashboard",
+  "name": "notarix-dashboard",
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "vercel-build": "vite build"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.12.0",
