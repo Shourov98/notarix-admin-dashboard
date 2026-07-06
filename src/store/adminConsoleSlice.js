@@ -667,6 +667,25 @@ export const revokeSecuritySession = createAsyncThunk(
   }
 );
 
+export const updateAdminOrderStatus = createAsyncThunk(
+  "adminConsole/updateAdminOrderStatus",
+  async ({ orderId, status, note }, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: { status, note },
+      });
+      await Promise.all([
+        dispatch(fetchAdminOrder(orderId)),
+        dispatch(fetchAdminOrders()),
+      ]);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update order status.");
+    }
+  }
+);
+
 const adminConsoleSlice = createSlice({
   name: "adminConsole",
   initialState: {
