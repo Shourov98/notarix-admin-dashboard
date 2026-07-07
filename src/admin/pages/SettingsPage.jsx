@@ -30,6 +30,7 @@ import {
   StatusBadge,
 } from "../components/ui";
 import { settingsNavItems } from "../data/navigation";
+import { downloadReport } from "../../services/exports";
 import {
   activateAdmin,
   createAdmin,
@@ -635,9 +636,33 @@ const AdminSettings = () => {
                 <td className="px-6 py-5"><StatusBadge status={admin.status} /></td>
                 <td className="px-6 py-5 text-slate-600">{admin.lastSignInAt ? new Date(admin.lastSignInAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "Never"}</td>
                 <td className="px-6 py-5">
-                  <div className="flex gap-4 text-slate-600">
-                    <Eye className="h-5 w-5" />
-                    <Pencil className="h-5 w-5" />
+                  <div className="flex items-center gap-4 text-slate-600">
+                    <button
+                      type="button"
+                      className="text-slate-600 hover:text-slate-900"
+                      aria-label={`View ${admin.name}`}
+                      onClick={() => {
+                        const detail = [
+                          `Name: ${admin.name}`,
+                          `Email: ${admin.email}`,
+                          `Role: ${admin.role}`,
+                          `Status: ${admin.status}`,
+                          `Permissions: ${admin.permissions?.length ? admin.permissions.map((p) => p.replaceAll("_", " ")).join(", ") : "None"}`,
+                          `Last sign-in: ${admin.lastSignInAt ? new Date(admin.lastSignInAt).toLocaleString() : "Never"}`,
+                        ].join("\n");
+                        window.alert(detail);
+                      }}
+                    >
+                      <Eye className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="text-slate-600 hover:text-slate-900"
+                      aria-label={`Edit ${admin.name}`}
+                      onClick={() => toast.info("Inline admin editing opens in a future release. Use Add Admin to create new accounts.")}
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(admin)}
@@ -665,7 +690,41 @@ const AdminSettings = () => {
       <Card className="mt-7 bg-[#e8e6f5] p-7">
         <SectionTitle icon={Info} title="About Admin Roles" />
         <p className="text-slate-600">Super Admins have full access to billing, legal entity settings, and platform-wide security protocols. Standard Admins can manage users, view document histories, and handle notary validation tasks.</p>
-        <div className="mt-5 flex gap-6 font-bold text-[var(--color-brand-primary)]"><button type="button">View Permissions Matrix</button><button type="button">Download Audit Trail</button></div>
+        <div className="mt-5 flex gap-6 font-bold text-[var(--color-brand-primary)]">
+          <button
+            type="button"
+            onClick={() => {
+              const matrix = ADMIN_PERMISSION_OPTIONS
+                .map(
+                  (option) =>
+                    `• ${option.label} (${option.key})\n   ${option.description}`
+                )
+                .join("\n\n");
+              window.alert(
+                `Notarix permission model:\n\n${matrix}\n\nSuper admins automatically receive every permission.`
+              );
+            }}
+          >
+            View Permissions Matrix
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await downloadReport(
+                  "/admin/reports/audit-logs",
+                  {},
+                  `audit-trail-${new Date().toISOString().slice(0, 10)}.csv`
+                );
+                toast.success("Audit trail downloaded.");
+              } catch (error) {
+                toast.error(error?.message || "Unable to download audit trail.");
+              }
+            }}
+          >
+            Download Audit Trail
+          </button>
+        </div>
       </Card>
       <AddAdminModal open={open} onClose={() => setOpen(false)} />
     </SettingsShell>

@@ -23,6 +23,9 @@ import {
 import {
   fetchAdminUser,
   selectAdminConsole,
+  suspendUser,
+  activateUser,
+  updateUserStatus,
   updateUserDocumentStatus,
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -48,7 +51,14 @@ const formatCompletion = (documents = []) => {
 const countPendingDocuments = (documents = []) =>
   documents.filter((doc) => !["Verified", "Approved", "Completed"].includes(doc?.status)).length;
 
-const ClientOverview = ({ client }) => (
+const ClientOverview = ({
+  client,
+  onApprove,
+  onSuspend,
+  onReactivate,
+  onRequestMissing,
+  onSendMessage,
+}) => (
   <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
     <div className="grid gap-6 md:grid-cols-2">
       <Card className="p-6">
@@ -129,11 +139,24 @@ const ClientOverview = ({ client }) => (
       <Card className="p-6">
         <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-slate-500">Administrative Actions</p>
         <div className="space-y-3">
-          <Button className="w-full" icon={ShieldCheck}>Approve Client</Button>
-          <Button className="w-full" variant="danger">Suspend Client</Button>
+          <Button className="w-full" icon={ShieldCheck} onClick={onApprove}>
+            {client?.status === "Active" ? "Mark as Approved" : "Approve Client"}
+          </Button>
+          <Button className="w-full" variant="danger" onClick={onSuspend}>
+            Suspend Client
+          </Button>
+          {client?.status === "Suspended" ? (
+            <Button className="w-full" variant="secondary" onClick={onReactivate}>
+              Reactivate Client
+            </Button>
+          ) : null}
           <div className="h-px bg-slate-200" />
-          <Button className="w-full" variant="subtle">Request Missing Documents</Button>
-          <Button className="w-full" variant="subtle" icon={MessageSquare}>Send Message</Button>
+          <Button className="w-full" variant="subtle" onClick={onRequestMissing}>
+            Request Missing Documents
+          </Button>
+          <Button className="w-full" variant="subtle" icon={MessageSquare} onClick={onSendMessage}>
+            Send Message
+          </Button>
         </div>
       </Card>
     </aside>
@@ -191,7 +214,19 @@ const ClientDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
                 <Button variant="danger" onClick={() => onMarkMissing?.(doc.id)}>
                   Mark Missing
                 </Button>
-                <Button variant="secondary" className="sm:col-span-2">View Document</Button>
+                {doc.url || doc.downloadUrl ? (
+                  <Button
+                    variant="secondary"
+                    className="sm:col-span-2"
+                    onClick={() => window.open(doc.downloadUrl || doc.url, "_blank", "noopener")}
+                  >
+                    View Document
+                  </Button>
+                ) : (
+                  <Button variant="secondary" className="sm:col-span-2" disabled>
+                    View Document
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -399,7 +434,18 @@ const NotaryDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
                 </Button>
               ) : (
                 <>
-                  <Button variant="secondary">View</Button>
+                  {doc.url || doc.downloadUrl ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => window.open(doc.downloadUrl || doc.url, "_blank", "noopener")}
+                    >
+                      View
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" disabled>
+                      View
+                    </Button>
+                  )}
                   <Button
                     variant={doc.status === "Verified" ? "secondary" : "primary"}
                     onClick={() =>
@@ -483,6 +529,91 @@ const UserProfilePage = ({ type = "client" }) => {
     }
   };
 
+  const handleApproveUser = async () => {
+    if (!id) return;
+    try {
+      await dispatch(updateUserStatus({ userId: id, status: "Active" })).unwrap();
+      toast.success(`${isNotary ? "Notary" : "Client"} approved.`);
+    } catch (error) {
+      toast.error(error || "Unable to approve user.");
+    }
+  };
+
+  const handleSuspendUser = async () => {
+    if (!id) return;
+    const confirmed = window.confirm(
+      `Suspend ${currentUser?.name || "this user"}? They will not be able to sign in.`
+    );
+    if (!confirmed) return;
+    try {
+      await dispatch(suspendUser(id)).unwrap();
+      toast.success("User suspended.");
+    } catch (error) {
+      toast.error(error || "Unable to suspend user.");
+    }
+  };
+
+  const handleReactivateUser = async () => {
+    if (!id) return;
+    try {
+      await dispatch(activateUser(id)).unwrap();
+      toast.success("User reactivated.");
+    } catch (error) {
+      toast.error(error || "Unable to reactivate user.");
+    }
+  };
+
+  const handleRequestMissingDocs = async () => {
+    if (!id) return;
+    const documents = currentUser?.requiredDocuments || [];
+    const missingDocs = documents.filter((doc) => doc?.status === "Missing");
+    if (missingDocs.length === 0) {
+      toast.info("All documents are already uploaded for this user.");
+      return;
+    }
+    try {
+      // Re-flag Missing docs to send the user a fresh review request via audit log.
+      await Promise.all(
+        missingDocs.map((doc) =>
+          dispatch(
+            updateUserDocumentStatus({
+              userId: id,
+              documentId: doc.id,
+              status: "Pending",
+            })
+          ).unwrap()
+        )
+      );
+      toast.success(`Requested ${missingDocs.length} missing document(s).`);
+    } catch (error) {
+      toast.error(error || "Unable to request missing documents.");
+    }
+  };
+
+  const handleSendMessage = () => {
+    if (!currentUser?.email) {
+      toast.error("This user has no email on file.");
+      return;
+    }
+    const subject = encodeURIComponent(
+      `${isNotary ? "Notary" : "Client"} account — message from Notarix admin`
+    );
+    const body = encodeURIComponent(
+      `Hello ${currentUser.name || ""},\n\n`
+    );
+    window.location.href = `mailto:${currentUser.email}?subject=${subject}&body=${body}`;
+  };
+
+  const handleEditUser = () => {
+    if (!id) return;
+    // Profile editing surface is not built yet; route the admin back to the
+    // user-management list so they can use existing filters/actions there.
+    toast.info(
+      "Inline profile editing opens in a future release. Use the documents tab to review records."
+    );
+    window.location.href = `/users/${type}/${id}/documents`;
+  };
+
   return (
     <div>
       <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -491,10 +622,23 @@ const UserProfilePage = ({ type = "client" }) => {
           {isNotary ? <p className="mt-1 text-slate-600">View notary profile, credentials, and status</p> : null}
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="secondary">{isNotary ? "Edit Notary" : "Edit Client"}</Button>
-          <Button variant="danger">Suspend</Button>
-          <Button variant="secondary">Approve</Button>
-          {isNotary ? <Button>Send Message</Button> : null}
+          <Button variant="secondary" onClick={handleEditUser}>
+            {isNotary ? "Edit Notary" : "Edit Client"}
+          </Button>
+          {currentUser?.status === "Suspended" ? (
+            <Button variant="secondary" onClick={handleReactivateUser}>
+              Reactivate
+            </Button>
+          ) : (
+            <Button variant="danger" onClick={handleSuspendUser}>
+              Suspend
+            </Button>
+          )}
+          <Button variant="secondary" onClick={handleApproveUser}>
+            Approve
+          </Button>
+          {isNotary ? <Button onClick={handleSendMessage}>Send Message</Button> : null}
+          {!isNotary ? <Button onClick={handleSendMessage}>Send Message</Button> : null}
         </div>
       </div>
 
@@ -567,7 +711,14 @@ const UserProfilePage = ({ type = "client" }) => {
           onMarkMissing={handleMarkMissing}
         />
       ) : (
-        <ClientOverview client={client} />
+        <ClientOverview
+          client={client}
+          onApprove={handleApproveUser}
+          onSuspend={handleSuspendUser}
+          onReactivate={handleReactivateUser}
+          onRequestMissing={handleRequestMissingDocs}
+          onSendMessage={handleSendMessage}
+        />
       )}
     </div>
   );

@@ -1,6 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, MoreVertical, Plus, UserCheck, UserRound, Users, UserX } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  MoreVertical,
+  Plus,
+  ShieldOff,
+  UserCheck,
+  UserRound,
+  Users,
+  UserX,
+} from "lucide-react";
+import { toast } from "sonner";
 import {
   Avatar,
   Button,
@@ -10,7 +21,13 @@ import {
   Pagination,
   StatusBadge,
 } from "../components/ui";
-import { fetchAdminUsers, selectAdminConsole } from "../../store/adminConsoleSlice";
+import {
+  fetchAdminUsers,
+  selectAdminConsole,
+  suspendUser,
+  activateUser,
+  updateUserStatus,
+} from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 const UserManagementPage = () => {
@@ -22,6 +39,8 @@ const UserManagementPage = () => {
     status: "",
     page: 1,
   });
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     dispatch(
@@ -33,6 +52,47 @@ const UserManagementPage = () => {
       })
     );
   }, [dispatch, filters]);
+
+  // Close the row menu when clicking anywhere outside it.
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+    const handler = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openMenuId]);
+
+  const handleRowAction = async (user, action) => {
+    setOpenMenuId(null);
+    try {
+      if (action === "view") {
+        window.location.href = `/users/${String(user.role).toLowerCase()}/${user.id}`;
+        return;
+      }
+      if (action === "approve") {
+        await dispatch(updateUserStatus({ userId: user.id, status: "Active" })).unwrap();
+        toast.success(`${user.name} approved.`);
+        return;
+      }
+      if (action === "suspend") {
+        const confirmed = window.confirm(`Suspend ${user.name}? They will not be able to sign in.`);
+        if (!confirmed) return;
+        await dispatch(suspendUser(user.id)).unwrap();
+        toast.success(`${user.name} suspended.`);
+        return;
+      }
+      if (action === "activate") {
+        await dispatch(activateUser(user.id)).unwrap();
+        toast.success(`${user.name} reactivated.`);
+        return;
+      }
+    } catch (error) {
+      toast.error(error?.message || "Action failed.");
+    }
+  };
 
   const handleFilterChange = (field, value) => {
     setFilters((current) => ({
@@ -132,9 +192,64 @@ const UserManagementPage = () => {
                         <Link to={profilePath} className="text-[var(--color-brand-primary)]" aria-label={`View ${user.name}`}>
                           <Eye className="h-5 w-5" />
                         </Link>
-                        <button type="button" className="text-slate-400" aria-label="More actions">
-                          <MoreVertical className="h-5 w-5" />
-                        </button>
+                        <div className="relative" ref={openMenuId === user.id ? menuRef : null}>
+                          <button
+                            type="button"
+                            className="text-slate-400 hover:text-slate-700"
+                            aria-label="More actions"
+                            aria-haspopup="menu"
+                            aria-expanded={openMenuId === user.id}
+                            onClick={() =>
+                              setOpenMenuId((current) => (current === user.id ? null : user.id))
+                            }
+                          >
+                            <MoreVertical className="h-5 w-5" />
+                          </button>
+                          {openMenuId === user.id ? (
+                            <div
+                              role="menu"
+                              className="absolute right-0 z-20 mt-2 w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                            >
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                onClick={() => handleRowAction(user, "view")}
+                              >
+                                <Eye className="h-4 w-4" /> View profile
+                              </button>
+                              {user.status !== "Active" ? (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                  onClick={() => handleRowAction(user, "approve")}
+                                >
+                                  <UserCheck className="h-4 w-4" /> Approve
+                                </button>
+                              ) : null}
+                              {user.status === "Suspended" ? (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                  onClick={() => handleRowAction(user, "activate")}
+                                >
+                                  <CheckCircle2 className="h-4 w-4" /> Reactivate
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                  onClick={() => handleRowAction(user, "suspend")}
+                                >
+                                  <ShieldOff className="h-4 w-4" /> Suspend
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     </td>
                   </tr>

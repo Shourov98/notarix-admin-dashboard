@@ -19,14 +19,8 @@ import {
   StatusBadge,
 } from "../components/ui";
 import { selectAdminConsole } from "../../store/adminConsoleSlice";
-import { useAppSelector } from "../../store/hooks";
-
-const quickActions = [
-  { label: "Create Order", icon: PlusCircle },
-  { label: "Add Notary", icon: UsersRound, to: "/users/new?type=notary" },
-  { label: "Add Client", icon: UserPlus, to: "/users/new?type=client" },
-  { label: "View Reports", icon: ChartNoAxesColumn, to: "/reports" },
-];
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import { toast } from "sonner";
 
 const dashboardStatIcons = {
   "Total Users": UsersRound,
@@ -55,6 +49,23 @@ const NotaryCell = ({ name }) => {
 
 const DashboardPage = () => {
   const { dashboardStats, recentOrders } = useAppSelector(selectAdminConsole);
+
+  // Orders are created by clients in the portal, not by admins in the dashboard.
+  // Clicking "Create Order" here navigates to the orders list filtered to recent
+  // activity so the admin can monitor what's coming in.
+  const handleCreateOrder = () => {
+    toast.info(
+      "Orders are created by clients via the Notarix portal. Opening the orders queue."
+    );
+    window.location.href = "/orders";
+  };
+
+  const quickActions = [
+    { label: "Create Order", icon: PlusCircle, onClick: handleCreateOrder },
+    { label: "Add Notary", icon: UsersRound, to: "/users/new?type=notary" },
+    { label: "Add Client", icon: UserPlus, to: "/users/new?type=client" },
+    { label: "View Reports", icon: ChartNoAxesColumn, to: "/reports" },
+  ];
 
   return (
     <div>
@@ -92,7 +103,12 @@ const DashboardPage = () => {
                   {actionContent}
                 </Link>
               ) : (
-                <button key={action.label} type="button" className={quickActionClass}>
+                <button
+                  key={action.label}
+                  type="button"
+                  className={quickActionClass}
+                  onClick={action.onClick}
+                >
                   {actionContent}
                 </button>
               );

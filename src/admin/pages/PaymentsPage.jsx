@@ -20,6 +20,7 @@ import {
   TextArea,
 } from "../components/ui";
 import { apiRequest, buildApiUrl } from "../../services/httpClient";
+import { downloadReport } from "../../services/exports";
 
 const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`;
 
@@ -260,7 +261,25 @@ const PaymentsPage = () => {
         title="Payments"
         description="Manage manual client receipts, notary payouts, and supporting proof."
         actions={
-          <Button variant="subtle" icon={Download} size="lg">Export</Button>
+          <Button
+            variant="subtle"
+            icon={Download}
+            size="lg"
+            onClick={async () => {
+              try {
+                await downloadReport(
+                  "/admin/reports/payments",
+                  {},
+                  `payments-${new Date().toISOString().slice(0, 10)}.csv`
+                );
+                toast.success("Payments CSV downloaded.");
+              } catch (error) {
+                toast.error(error?.message || "Unable to export payments.");
+              }
+            }}
+          >
+            Export
+          </Button>
         }
       />
 

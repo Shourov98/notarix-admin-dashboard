@@ -497,6 +497,69 @@ export const activateAdmin = createAsyncThunk(
   }
 );
 
+/**
+ * Suspend a Client or Notary (User model).
+ */
+export const suspendUser = createAsyncThunk(
+  "adminConsole/suspendUser",
+  async (userId, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/users/${userId}/suspend`, { method: "PATCH" });
+      await Promise.all([
+        dispatch(fetchAdminUser(userId)),
+        dispatch(fetchAdminUsers()),
+        dispatch(fetchAdminConsole()),
+      ]);
+      return userId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to suspend user.");
+    }
+  }
+);
+
+/**
+ * Reactivate a suspended Client or Notary.
+ */
+export const activateUser = createAsyncThunk(
+  "adminConsole/activateUser",
+  async (userId, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/users/${userId}/activate`, { method: "PATCH" });
+      await Promise.all([
+        dispatch(fetchAdminUser(userId)),
+        dispatch(fetchAdminUsers()),
+        dispatch(fetchAdminConsole()),
+      ]);
+      return userId;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to activate user.");
+    }
+  }
+);
+
+/**
+ * Update a user's lifecycle status (Active / Suspended / Pending).
+ */
+export const updateUserStatus = createAsyncThunk(
+  "adminConsole/updateUserStatus",
+  async ({ userId, status }, { dispatch, rejectWithValue }) => {
+    try {
+      await apiRequest(`/admin/users/${userId}/status`, {
+        method: "PATCH",
+        body: { status },
+      });
+      await Promise.all([
+        dispatch(fetchAdminUser(userId)),
+        dispatch(fetchAdminUsers()),
+        dispatch(fetchAdminConsole()),
+      ]);
+      return { userId, status };
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update user status.");
+    }
+  }
+);
+
 export const fetchAdminUser = createAsyncThunk(
   "adminConsole/fetchAdminUser",
   async (userId, { rejectWithValue }) => {

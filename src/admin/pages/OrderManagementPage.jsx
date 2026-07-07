@@ -29,6 +29,7 @@ import {
   fetchEligibleNotaries,
   selectAdminConsole,
 } from "../../store/adminConsoleSlice";
+import { downloadReport } from "../../services/exports";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 const ORDER_STATUS_OPTIONS = [
@@ -334,7 +335,30 @@ const OrderManagementPage = () => {
         title="Order Management"
         description="Review incoming client orders, search live records, and assign qualified notaries."
         actions={
-          <Button variant="secondary" icon={FileDown}>
+          <Button
+            variant="secondary"
+            icon={FileDown}
+            onClick={async () => {
+              try {
+                const params = {
+                  search: filters.search.trim() || undefined,
+                  status:
+                    filters.status && filters.status !== "All Statuses"
+                      ? filters.status
+                      : undefined,
+                  serviceType: filters.serviceType || undefined,
+                };
+                await downloadReport(
+                  "/admin/reports/orders",
+                  params,
+                  `orders-${new Date().toISOString().slice(0, 10)}.csv`
+                );
+                toast.success("Orders CSV downloaded.");
+              } catch (error) {
+                toast.error(error?.message || "Unable to export orders.");
+              }
+            }}
+          >
             Export CSV
           </Button>
         }

@@ -80,6 +80,8 @@ const DocumentsPage = () => {
   const [rejectReason, setRejectReason] = useState("");
   const [actionStatus, setActionStatus] = useState("idle");
   const [documents, setDocuments] = useState([]);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkInFlight, setBulkInFlight] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -148,6 +150,82 @@ const DocumentsPage = () => {
       setActionStatus("idle");
     }
   }, [dispatch, filters, loadDocuments, pagination.page]);
+
+  const toggleSelected = (documentId) => {
+    setSelectedIds((current) =>
+      current.includes(documentId)
+        ? current.filter((id) => id !== documentId)
+        : [...current, documentId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((current) =>
+      current.length === documents.length ? [] : documents.map((doc) => doc.id)
+    );
+  };
+
+  const runBulkAction = async (action) => {
+    if (selectedIds.length === 0) {
+      toast.info("Select at least one document first.");
+      return;
+    }
+
+    const selectedDocs = documents.filter((doc) => selectedIds.includes(doc.id));
+    const confirmed = window.confirm(
+      `${action} ${selectedDocs.length} document${selectedDocs.length === 1 ? "" : "s"}?`
+    );
+    if (!confirmed) return;
+
+    setBulkInFlight(true);
+    let succeeded = 0;
+    let failed = 0;
+    try {
+      // Download: open each file URL one at a time so the browser handles it
+      // natively. The other bulk operations hit the per-document status endpoint.
+      if (action === "Download") {
+        selectedDocs.forEach((doc) => {
+          const url = doc.downloadUrl || doc.url;
+          if (url) {
+            window.open(url, "_blank", "noopener");
+            succeeded += 1;
+          } else {
+            failed += 1;
+          }
+        });
+      } else {
+        const status =
+          action === "Verify" ? "Verified" :
+          action === "Reject" ? "Rejected" :
+          action === "Archive" ? "Missing" :
+          null;
+        if (!status) return;
+        for (const doc of selectedDocs) {
+          if (!doc.userId || !doc.id) {
+            failed += 1;
+            continue;
+          }
+          try {
+            await apiRequest(
+              `/admin/users/${doc.userId}/documents/${doc.id}/status`,
+              { method: "PATCH", body: { status } }
+            );
+            succeeded += 1;
+          } catch (error) {
+            failed += 1;
+          }
+        }
+      }
+      toast.success(
+        `${action} complete: ${succeeded} succeeded${failed ? `, ${failed} failed` : ""}.`
+      );
+      setSelectedIds([]);
+      await loadDocuments(pagination.page, filters);
+      dispatch(fetchAdminConsole());
+    } finally {
+      setBulkInFlight(false);
+    }
+  };
 
   const openPreview = (document) => {
     setSelectedDocument(document);
@@ -233,11 +311,30 @@ const DocumentsPage = () => {
       </Card>
 
       <div className="mt-6 flex flex-col gap-4 rounded-lg bg-[var(--color-brand-primary)] p-5 text-white md:flex-row md:items-center md:justify-between">
-        <p className="flex items-center gap-3 text-lg font-semibold"><CheckCircle2 className="h-5 w-5" /> 3 Documents Selected</p>
+        <p className="flex items-center gap-3 text-lg font-semibold"><CheckCircle2 className="h-5 w-5" /> {selectedIds.length} Document{selectedIds.length === 1 ? "" : "s"} Selected</p>
         <div className="flex flex-wrap gap-3">
-          <Button className="bg-white/15 shadow-none hover:bg-white/20">Download Bulk</Button>
-          <Button className="bg-white/15 shadow-none hover:bg-white/20">Archive All</Button>
-          <Button variant="dangerSolid" icon={Trash2}>Delete Selected</Button>
+          <Button
+            className="bg-white/15 shadow-none hover:bg-white/20"
+            onClick={() => runBulkAction("Download")}
+            disabled={selectedIds.length === 0 || bulkInFlight}
+          >
+            Download Bulk
+          </Button>
+          <Button
+            className="bg-white/15 shadow-none hover:bg-white/20"
+            onClick={() => runBulkAction("Archive")}
+            disabled={selectedIds.length === 0 || bulkInFlight}
+          >
+            Archive Selected
+          </Button>
+          <Button
+            variant="dangerSolid"
+            icon={Trash2}
+            onClick={() => runBulkAction("Reject")}
+            disabled={selectedIds.length === 0 || bulkInFlight}
+          >
+            Reject Selected
+          </Button>
         </div>
       </div>
 
@@ -246,7 +343,14 @@ const DocumentsPage = () => {
           <table className="min-w-full text-left">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-5 py-5"><input type="checkbox" className="h-4 w-4 p-0" /></th>
+                <th className="px-5 py-5">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 p-0"
+                    checked={documents.length > 0 && selectedIds.length === documents.length}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th className="px-5 py-5">Document Name</th>
                 <th className="px-5 py-5">Order ID</th>
                 <th className="px-5 py-5">Uploaded By</th>
@@ -259,7 +363,14 @@ const DocumentsPage = () => {
             <tbody>
               {documents.map((doc) => (
                 <tr key={doc.id} className="border-t border-slate-100">
-                  <td className="px-5 py-6"><input type="checkbox" defaultChecked={doc.selected} className="h-4 w-4 p-0" /></td>
+                  <td className="px-5 py-6">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 p-0"
+                      checked={selectedIds.includes(doc.id)}
+                      onChange={() => toggleSelected(doc.id)}
+                    />
+                  </td>
                   <td className="px-5 py-6">
                     <div className="flex items-center gap-4">
                       <FileText className={doc.status === "Rejected" ? "h-5 w-5 text-red-500" : "h-5 w-5 text-slate-500"} />
