@@ -5,11 +5,10 @@ import {
   isTokenExpired,
 } from "../utils/auth";
 
-const DEFAULT_API_BASE_URL = "http://localhost:5191";
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:5191";
 const DEFAULT_API_PREFIX = "/api/v1";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
+const API_BASE_URL = DEFAULT_API_BASE_URL;
 const API_PREFIX = import.meta.env.VITE_API_PREFIX?.trim() || DEFAULT_API_PREFIX;
 export class ApiError extends Error {
   constructor(message, status, payload) {

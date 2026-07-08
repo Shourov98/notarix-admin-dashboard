@@ -15,7 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiRequest } from "../../services/httpClient";
+import { apiRequest, buildApiUrl } from "../../services/httpClient";
 import {
   Button,
   Card,
@@ -515,7 +515,7 @@ const OrderDetailsPage = () => {
                       <div className="flex items-center gap-3">
                         <StatusBadge status={document.status || "Pending"} />
                         {document.url ? (
-                          <a href={`http://localhost:5191${document.url}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
+                          <a href={buildApiUrl(document.url, { skipPrefix: true })} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
                             Open
                           </a>
                         ) : null}

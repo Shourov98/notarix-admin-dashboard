@@ -1,8 +1,15 @@
 import { io } from "socket.io-client";
 import { getAdminSession } from "../utils/auth";
 
-const DEFAULT_SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL?.trim() || "http://localhost:5191";
+const resolveSocketUrl = () => {
+  const explicit = import.meta.env.VITE_SOCKET_URL?.trim();
+  if (explicit) return explicit;
+  const apiBase = import.meta.env.VITE_API_BASE_URL?.trim();
+  if (apiBase) return apiBase;
+  return "http://localhost:5191";
+};
+
+const DEFAULT_SOCKET_URL = resolveSocketUrl();
 
 let socket = null;
 const subscribers = new Map();

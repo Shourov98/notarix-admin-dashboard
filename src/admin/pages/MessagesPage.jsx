@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Paperclip, Search, Send } from "lucide-react";
+import { FileText, Image as ImageIcon, Paperclip, Search, Send, X } from "lucide-react";
 import { io } from "socket.io-client";
 import { toast } from "sonner";
 import { Avatar, Button, Card, StatusBadge } from "../components/ui";
@@ -15,6 +15,16 @@ const formatMessageTime = (value) =>
         minute: "2-digit",
       })
     : "";
+
+const formatFileSize = (bytes) => {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, exponent);
+  return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+};
+
+const isImageMime = (mimeType) => Boolean(mimeType && mimeType.startsWith("image/"));
 
 const MessagesPage = () => {
   const [conversations, setConversations] = useState([]);
@@ -158,7 +168,7 @@ const MessagesPage = () => {
     try {
       if (attachments.length > 0) {
         const formData = new FormData();
-        attachments.forEach((file) => formData.append("attachments", file));
+        attachments.forEach((item) => formData.append("attachments", item.file));
         if (draft.trim()) {
           formData.append("body", draft.trim());
         }
@@ -179,6 +189,9 @@ const MessagesPage = () => {
         loadMessages(activeConversationId),
         loadConversations(activeConversationId),
       ]);
+      attachments.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
       setDraft("");
       setAttachments([]);
     } catch (error) {
@@ -189,8 +202,37 @@ const MessagesPage = () => {
   };
 
   const handleFileChange = (event) => {
-    setAttachments(Array.from(event.target.files || []));
+    const files = Array.from(event.target.files || []);
+    const next = files.map((file) => ({
+      id: `local-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+      file,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type,
+      previewUrl: isImageMime(file.type) ? URL.createObjectURL(file) : null,
+    }));
+    setAttachments(next);
+    event.target.value = "";
   };
+
+  const handleRemoveAttachment = (id) => {
+    setAttachments((current) => {
+      const target = current.find((item) => item.id === id);
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+      return current.filter((item) => item.id !== id);
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      attachments.forEach((item) => {
+        if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const counterpartRole = activeConversation?.counterpart?.role || "";
   const counterpartName = activeConversation?.counterpart?.name || "Select a conversation";
@@ -304,22 +346,66 @@ const MessagesPage = () => {
               >
                 {message.body ? <p className="text-base leading-relaxed">{message.body}</p> : null}
                 {message.attachments?.length ? (
-                  <div className={`${message.body ? "mt-4" : ""} space-y-2`}>
-                    {message.attachments.map((attachment) => (
-                      <a
-                        key={attachment.id}
-                        href={buildApiUrl(attachment.url, { skipPrefix: true })}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`block rounded-lg border px-3 py-2 text-sm ${
-                          message.isOwnMessage
-                            ? "border-white/25 bg-white/10 text-white"
-                            : "border-[var(--color-border)] bg-white text-slate-700"
-                        }`}
-                      >
-                        {attachment.name}
-                      </a>
-                    ))}
+                  <div className={`${message.body ? "mt-4" : ""} grid grid-cols-1 gap-2 sm:grid-cols-2`}>
+                    {message.attachments.map((attachment) => {
+                      const imageLike = isImageMime(attachment.mimeType);
+                      const href = attachment.url
+                        ? buildApiUrl(attachment.url, { skipPrefix: true })
+                        : null;
+                      const containerClass = `flex items-center gap-3 rounded-lg border p-3 ${
+                        message.isOwnMessage
+                          ? "border-white/25 bg-white/10 text-white"
+                          : "border-[var(--color-border)] bg-white text-slate-700"
+                      }`;
+                      const inner = (
+                        <>
+                          {imageLike && attachment.url ? (
+                            <img
+                              src={buildApiUrl(attachment.url, { skipPrefix: true })}
+                              alt={attachment.name}
+                              className="h-12 w-12 shrink-0 rounded-md object-cover"
+                            />
+                          ) : (
+                            <div
+                              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-md ${
+                                message.isOwnMessage ? "bg-white/15" : "bg-slate-100"
+                              }`}
+                            >
+                              {imageLike ? (
+                                <ImageIcon className="h-6 w-6" />
+                              ) : (
+                                <FileText className="h-6 w-6" />
+                              )}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{attachment.name}</p>
+                            <p
+                              className={`mt-0.5 text-xs ${
+                                message.isOwnMessage ? "text-white/70" : "text-slate-500"
+                              }`}
+                            >
+                              {attachment.size ? formatFileSize(attachment.size) : "Attachment"}
+                            </p>
+                          </div>
+                        </>
+                      );
+                      return href ? (
+                        <a
+                          key={attachment.id}
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={containerClass}
+                        >
+                          {inner}
+                        </a>
+                      ) : (
+                        <div key={attachment.id} className={containerClass}>
+                          {inner}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : null}
               </div>
@@ -342,9 +428,42 @@ const MessagesPage = () => {
               onChange={(event) => setDraft(event.target.value)}
             />
             {attachments.length > 0 ? (
-              <p className="mt-3 text-sm text-slate-500">
-                {attachments.length} attachment{attachments.length === 1 ? "" : "s"} selected
-              </p>
+              <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {attachments.map((item) => (
+                  <div
+                    key={item.id}
+                    className="relative flex items-center gap-3 rounded-lg border border-[var(--color-border)] bg-white p-3"
+                  >
+                    {item.previewUrl ? (
+                      <img
+                        src={item.previewUrl}
+                        alt={item.name}
+                        className="h-12 w-12 shrink-0 rounded-md object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-600">
+                        {isImageMime(item.mimeType) ? (
+                          <ImageIcon className="h-6 w-6" />
+                        ) : (
+                          <FileText className="h-6 w-6" />
+                        )}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 pr-6">
+                      <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{formatFileSize(item.size)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(item.id)}
+                      aria-label={`Remove ${item.name}`}
+                      className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-red-100 hover:text-red-600"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             ) : null}
             <div className="mt-5 flex items-center justify-between gap-4">
               <label className="inline-flex cursor-pointer items-center gap-2 text-slate-600">
