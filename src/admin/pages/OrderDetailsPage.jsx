@@ -329,7 +329,7 @@ const OrderDetailsPage = () => {
   );
   const allOrderDocumentsVerified = useMemo(
     () =>
-      hasOrderDocuments &&
+      !hasOrderDocuments ||
       (activeOrder?.documents || []).every((document) => document.status === "Verified"),
     [activeOrder, hasOrderDocuments]
   );
