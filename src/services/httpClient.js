@@ -20,6 +20,14 @@ export class ApiError extends Error {
 }
 
 export const buildApiUrl = (path, { skipPrefix = false } = {}) => {
+  if (!path) {
+    return API_BASE_URL.replace(/\/+$/, "");
+  }
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const prefixedPath = skipPrefix || normalizedPath.startsWith("/api/")
     ? normalizedPath
