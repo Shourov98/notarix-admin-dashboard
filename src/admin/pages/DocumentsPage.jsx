@@ -22,7 +22,7 @@ import {
   TextArea,
 } from "../components/ui";
 import { fetchAdminConsole, selectAdminConsole } from "../../store/adminConsoleSlice";
-import { apiRequest } from "../../services/httpClient";
+import { apiRequest, buildApiUrl } from "../../services/httpClient";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
 const PreviewPanel = ({ open, document, actionStatus, onClose, onReject, onVerify }) => {
@@ -44,7 +44,7 @@ const PreviewPanel = ({ open, document, actionStatus, onClose, onReject, onVerif
           {document.url ? (
             <iframe
               title={document.name}
-              src={document.url}
+              src={buildApiUrl(document.url, { skipPrefix: true, withToken: true })}
               className="h-[520px] w-full rounded-lg border border-[var(--color-border)] bg-white"
             />
           ) : (

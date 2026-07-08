@@ -355,7 +355,7 @@ const PaymentsPage = () => {
                   <td className="px-6 py-6 text-sm">
                     {payment.proof?.url ? (
                       <a
-                        href={buildApiUrl(payment.proof.url, { skipPrefix: true })}
+                        href={buildApiUrl(payment.proof.url, { skipPrefix: true, withToken: true })}
                         target="_blank"
                         rel="noreferrer"
                         className="font-bold text-[var(--color-brand-primary)] hover:underline"

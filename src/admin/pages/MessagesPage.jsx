@@ -37,12 +37,12 @@ const isImageMime = (mimeType) => Boolean(mimeType && mimeType.startsWith("image
 const resolveAttachmentUrl = (attachment) => {
   const raw = attachment?.url;
   if (!raw) return null;
-  return buildApiUrl(raw, { skipPrefix: true });
+  return buildApiUrl(raw, { skipPrefix: true, withToken: true });
 };
 
 const resolveDownloadUrl = (attachment) => {
   if (attachment?.downloadUrl) {
-    return buildApiUrl(attachment.downloadUrl, { skipPrefix: true });
+    return buildApiUrl(attachment.downloadUrl, { skipPrefix: true, withToken: true });
   }
   const viewUrl = resolveAttachmentUrl(attachment);
   if (!viewUrl) return null;

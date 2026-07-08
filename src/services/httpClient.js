@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-export const buildApiUrl = (path, { skipPrefix = false } = {}) => {
+export const buildApiUrl = (path, { skipPrefix = false, withToken = false } = {}) => {
   if (!path) {
     return API_BASE_URL.replace(/\/+$/, "");
   }
@@ -32,6 +32,20 @@ export const buildApiUrl = (path, { skipPrefix = false } = {}) => {
   const prefixedPath = skipPrefix || normalizedPath.startsWith("/api/")
     ? normalizedPath
     : `${API_PREFIX.replace(/\/+$/, "")}${normalizedPath}`;
+
+  // Backend proxy routes are loaded by the browser via <img>/<iframe>, which
+  // doesn't attach the Authorization header. Append the access token via the
+  // `token` query string when the caller asks for it.
+  const isFileProxy = prefixedPath.startsWith("/api/v1/files/") && withToken;
+  if (isFileProxy && typeof window !== "undefined") {
+    const session = getAdminSession();
+    if (session?.accessToken) {
+      const separator = prefixedPath.includes("?") ? "&" : "?";
+      return `${API_BASE_URL.replace(/\/+$/, "")}${prefixedPath}${separator}token=${encodeURIComponent(
+        session.accessToken
+      )}`;
+    }
+  }
 
   return `${API_BASE_URL.replace(/\/+$/, "")}${prefixedPath}`;
 };

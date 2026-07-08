@@ -515,7 +515,7 @@ const OrderDetailsPage = () => {
                       <div className="flex items-center gap-3">
                         <StatusBadge status={document.status || "Pending"} />
                         {document.url ? (
-                          <a href={buildApiUrl(document.url, { skipPrefix: true })} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
+                          <a href={buildApiUrl(document.url, { skipPrefix: true, withToken: true })} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
                             Open
                           </a>
                         ) : null}
