@@ -522,31 +522,41 @@ const OrderDetailsPage = () => {
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-3">
-                      <Button
-                        size="sm"
-                        icon={ShieldCheck}
-                        onClick={() => handleDocumentStatusUpdate(document.id, "Verified")}
-                        disabled={documentActionStatus === "loading" || document.status === "Verified"}
-                      >
-                        Verify
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        icon={XCircle}
-                        onClick={() => setDocumentRejectTarget({ id: document.id, name: document.name })}
-                        disabled={documentActionStatus === "loading" || document.status === "Rejected"}
-                      >
-                        Reject
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleDocumentStatusUpdate(document.id, "Pending")}
-                        disabled={documentActionStatus === "loading" || document.status === "Pending"}
-                      >
-                        Mark Pending
-                      </Button>
+                      {document.status !== "Verified" ? (
+                        <Button
+                          size="sm"
+                          icon={ShieldCheck}
+                          onClick={() => handleDocumentStatusUpdate(document.id, "Verified")}
+                          disabled={
+                            documentActionStatus === "loading" || document.status === "Rejected"
+                          }
+                        >
+                          Verify
+                        </Button>
+                      ) : null}
+                      {document.status !== "Rejected" ? (
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          icon={XCircle}
+                          onClick={() => setDocumentRejectTarget({ id: document.id, name: document.name })}
+                          disabled={
+                            documentActionStatus === "loading" || document.status === "Verified"
+                          }
+                        >
+                          Reject
+                        </Button>
+                      ) : null}
+                      {document.status !== "Pending" ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleDocumentStatusUpdate(document.id, "Pending")}
+                          disabled={documentActionStatus === "loading"}
+                        >
+                          Mark Pending
+                        </Button>
+                      ) : null}
                     </div>
                     {document.reviewNote ? (
                       document.status === "Rejected" ? (
