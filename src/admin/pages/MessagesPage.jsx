@@ -28,7 +28,11 @@ const MessagesPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const socketRef = useRef(null);
-  const socketUrl = import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:5191";
+  const rawSocketUrl =
+    import.meta.env.VITE_SOCKET_URL?.trim() ||
+    import.meta.env.VITE_API_BASE_URL?.trim() ||
+    "http://localhost:5191";
+  const socketUrl = rawSocketUrl.replace(/^http/i, "ws");
 
   const loadConversations = async (preferredConversationId = "") => {
     setLoadingConversations(true);
@@ -85,7 +89,10 @@ const MessagesPage = () => {
 
   useEffect(() => {
     const socket = io(socketUrl, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
     });
 
     socketRef.current = socket;
