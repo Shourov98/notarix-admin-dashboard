@@ -105,6 +105,14 @@ const baseState = () => {
     ticketActionStatus: "idle",
     ticketActionError: null,
     supportTickets: [],
+    supportTicketsPagination: emptyPagination,
+    supportTicketCounts: {
+      total: 0,
+      active: 0,
+      resolved: 0,
+      byStatus: {},
+    },
+    supportTicketCountsStatus: "idle",
     dashboardTimeSeries: null,
     dashboardTimeSeriesStatus: "idle",
     dashboardTimeSeriesError: null,
@@ -664,10 +672,35 @@ export const fetchSupportTickets = createAsyncThunk(
   async (filters = {}, { rejectWithValue }) => {
     try {
       const payload = await apiRequest("/admin/support/tickets", { query: filters });
-      const data = payload?.data || payload;
-      return Array.isArray(data) ? data : [];
+      const data = payload?.data || payload || {};
+      // Backward compat: backend now returns {items, pagination}, but older
+      // responses may still be a bare array.
+      if (Array.isArray(data)) {
+        return {
+          items: data,
+          pagination: emptyPagination,
+          counts: null,
+        };
+      }
+      return {
+        items: Array.isArray(data.items) ? data.items : [],
+        pagination: data.pagination || emptyPagination,
+        counts: null,
+      };
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to load support tickets.");
+    }
+  }
+);
+
+export const fetchSupportTicketCounts = createAsyncThunk(
+  "adminConsole/fetchSupportTicketCounts",
+  async (_arg, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/support/tickets/counts");
+      return payload?.data || payload || null;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load support ticket counts.");
     }
   }
 );
@@ -1142,13 +1175,28 @@ const adminConsoleSlice = createSlice({
         state.ticketsError = null;
       })
       .addCase(fetchSupportTickets.fulfilled, (state, action) => {
-        state.supportTickets = Array.isArray(action.payload) ? action.payload : [];
+        const payload = action.payload || {};
+        state.supportTickets = Array.isArray(payload.items) ? payload.items : [];
+        state.supportTicketsPagination = payload.pagination || emptyPagination;
+        if (payload.counts) {
+          state.supportTicketCounts = payload.counts;
+        }
         state.ticketsStatus = "ready";
         state.ticketsError = null;
       })
       .addCase(fetchSupportTickets.rejected, (state, action) => {
         state.ticketsStatus = "error";
         state.ticketsError = action.payload || "Unable to load support tickets.";
+      })
+      .addCase(fetchSupportTicketCounts.pending, (state) => {
+        state.supportTicketCountsStatus = "loading";
+      })
+      .addCase(fetchSupportTicketCounts.fulfilled, (state, action) => {
+        state.supportTicketCountsStatus = "ready";
+        state.supportTicketCounts = action.payload || state.supportTicketCounts;
+      })
+      .addCase(fetchSupportTicketCounts.rejected, (state) => {
+        state.supportTicketCountsStatus = "error";
       })
       .addCase(fetchSupportTicket.pending, (state) => {
         state.activeTicketStatus = "loading";
