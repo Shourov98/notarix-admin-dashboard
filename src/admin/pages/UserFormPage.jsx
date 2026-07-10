@@ -333,8 +333,10 @@ const UserFormPage = () => {
                     <LocationSelect
                       label="State"
                       required
-                      placeholder="Search by state name or code..."
+                      placeholder="Search by name"
                       options={US_STATES}
+                      optionValueKey="code"
+                      optionLabelKey="name"
                       value={formState.address.state}
                       onChange={(value) => {
                         updateSection("address", "state", value);
@@ -501,8 +503,10 @@ const UserFormPage = () => {
                     <LocationSelect
                       label="State"
                       required
-                      placeholder="Search by state name or code..."
+                      placeholder="Search by name"
                       options={US_STATES}
+                      optionValueKey="code"
+                      optionLabelKey="name"
                       value={formState.address.state}
                       onChange={(value) => {
                         updateSection("address", "state", value);
@@ -669,8 +673,8 @@ const UserFormPage = () => {
                     className="flex h-full min-h-[200px] flex-col rounded-xl border border-[var(--color-border)] bg-white p-4 transition-shadow hover:shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="truncate font-bold text-slate-900" title={title}>
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words font-bold leading-snug text-slate-900" title={title}>
                           {title}
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs text-slate-500">{description}</p>

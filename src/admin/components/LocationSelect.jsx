@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Loader2, MapPin, X } from "lucide-react";
+import { Check, ChevronDown, MapPin, X } from "lucide-react";
 
 const cn = (...classes) => classes.filter(Boolean).join(" ");
 
@@ -10,9 +10,12 @@ const normalize = (value) => String(value || "").trim().toLowerCase();
  *
  * Props:
  *  - label, required, helper, error      Field metadata
- *  - value                                Currently selected label (string)
+ *  - value                                Currently selected value (string)
  *  - onChange(value)                      Fired when the user picks an option
- *  - options                              Array of `{value, label}` strings OR plain strings
+ *  - options                              Array of `{value, label}` strings,
+ *                                          plain strings, OR `{code, name}` objects
+ *                                          when `optionValueKey`/`optionLabelKey` are set.
+ *  - optionValueKey / optionLabelKey     Map custom option shapes (e.g. `code` / `name`).
  *  - disabled, placeholder
  *  - leftIcon                             Any lucide-react icon, shown inside the input
  *  - emptyMessage                         Shown when no options match the query
@@ -27,6 +30,8 @@ export const LocationSelect = ({
   value,
   onChange,
   options,
+  optionValueKey = "value",
+  optionLabelKey = "label",
   disabled = false,
   placeholder = "Type to search...",
   leftIcon,
@@ -42,22 +47,43 @@ export const LocationSelect = ({
   const normalizedOptions = useMemo(() => {
     if (!Array.isArray(options)) return [];
     return options
-      .map((option) =>
-        typeof option === "string"
-          ? { value: option, label: option }
-          : { value: option.value, label: option.label ?? option.value }
-      )
-      .filter((option) => option.value !== undefined && option.value !== null);
-  }, [options]);
+      .map((option) => {
+        if (option === null || option === undefined) return null;
+        if (typeof option === "string") {
+          return { value: option, label: option };
+        }
+        if (typeof option !== "object") return null;
+        const rawValue = option[optionValueKey];
+        const rawLabel = option[optionLabelKey];
+        if (rawValue === undefined || rawValue === null) return null;
+        return {
+          value: String(rawValue),
+          label: String(rawLabel ?? rawValue),
+        };
+      })
+      .filter(Boolean);
+  }, [options, optionValueKey, optionLabelKey]);
 
   const [query, setQuery] = useState(value ? String(value) : "");
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  // Sync external `value` changes back into the input
+  // Resolve the displayed text for the current `value`.
+  // If `value` matches a known option, prefer the option's label so the user sees
+  // the human-readable name (e.g. "Alabama") instead of the raw id (e.g. "AL").
+  const valueToDisplay = useMemo(() => {
+    if (value === undefined || value === null || value === "") return "";
+    const match = normalizedOptions.find(
+      (option) => String(option.value) === String(value)
+    );
+    if (match) return match.label;
+    return String(value);
+  }, [normalizedOptions, value]);
+
+  // Sync external `value` changes back into the input (display label, not raw id).
   useEffect(() => {
-    setQuery(value ? String(value) : "");
-  }, [value]);
+    setQuery(valueToDisplay);
+  }, [valueToDisplay]);
 
   // Filter options by case-insensitive substring match against label OR value.
   const filteredOptions = useMemo(() => {
@@ -177,8 +203,23 @@ export const LocationSelect = ({
         </label>
       ) : null}
 
-      <div className="relative">
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+      <div
+        className={cn(
+          "relative h-11 w-full rounded-lg border bg-white transition-colors",
+          open
+            ? "border-[var(--color-brand-primary)] ring-2 ring-[var(--color-brand-primary)]/15"
+            : "border-slate-200 hover:border-slate-300",
+          disabled && "cursor-not-allowed bg-slate-50",
+          error && "border-rose-400"
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 left-0 z-10 flex w-11 items-center justify-center text-slate-400",
+            disabled && "text-slate-300"
+          )}
+        >
           <LeftIconAlias className="h-4 w-4" />
         </span>
         <input
@@ -201,30 +242,31 @@ export const LocationSelect = ({
           placeholder={placeholder}
           autoComplete="off"
           className={cn(
-            "h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-16 text-sm text-slate-800 placeholder:text-slate-400",
-            "transition focus:border-[var(--color-brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand-primary)]/20",
-            disabled && "cursor-not-allowed bg-slate-50 text-slate-400",
-            error && "border-rose-400 focus:border-rose-500 focus:ring-rose-200"
+            "relative z-20 h-full w-full rounded-lg border-0 bg-transparent pl-11 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:outline-none focus:ring-0",
+            disabled && "cursor-not-allowed text-slate-400"
           )}
         />
-        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-          {open ? (
-            <Loader2 className="h-4 w-4 animate-spin opacity-0" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </div>
         {showClear ? (
           <button
             type="button"
             onClick={handleClear}
             tabIndex={-1}
             aria-label="Clear selection"
-            className="absolute inset-y-0 right-8 flex items-center text-slate-400 hover:text-slate-600"
+            className="absolute inset-y-0 right-0 z-10 flex w-11 items-center justify-center text-slate-400 transition hover:text-slate-600"
           >
             <X className="h-4 w-4" />
           </button>
-        ) : null}
+        ) : (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "pointer-events-none absolute inset-y-0 right-0 z-10 flex w-11 items-center justify-center text-slate-400 transition-transform",
+              open && "rotate-180"
+            )}
+          >
+            <ChevronDown className="h-4 w-4" />
+          </span>
+        )}
 
         {open ? (
           <div
