@@ -178,9 +178,123 @@ const ensureFreshAdminSession = async () => {
   return session;
 };
 
+// Translate the backend's structured Zod validation errors into short, plain
+// English sentences the user can act on. Falls back to the raw message if we
+// don't recognize the field path or message.
+const ZOD_CODE_MESSAGES = {
+  invalid_type: "Please make sure all fields are filled in correctly.",
+  too_small: "is too short — please provide a longer value.",
+  too_big: "is too long — please shorten the value.",
+  invalid_format: "is not a valid format.",
+  invalid_string: "is not a valid value.",
+  invalid_enum_value: "is not a valid option.",
+  unrecognized_keys: "contains unexpected fields.",
+  custom: "is invalid.",
+};
+
+const FIELD_LABELS = {
+  "personalInfo.fullName": "Full Name",
+  "personalInfo.email": "Personal Email Address",
+  "personalInfo.phone": "Phone Number",
+  "loginEmail": "Login Email",
+  "primaryContact.name": "Primary Contact Name",
+  "primaryContact.email": "Primary Contact Email",
+  "primaryContact.phone": "Primary Contact Phone",
+  "secondaryContact.name": "Secondary Contact Name",
+  "secondaryContact.email": "Secondary Contact Email",
+  "address.line1": "Address Line 1",
+  "address.city": "City",
+  "address.state": "State",
+  "address.zip": "ZIP Code",
+  "commission.number": "Commission Number",
+  "commission.state": "Commission State",
+  "commission.expirationDate": "Commission Expiration Date",
+  "organization.companyName": "Company Name",
+};
+
+const prettyLabel = (path) => {
+  if (!path || path === "(root)" || path === "body") return "Some fields";
+  // Strip the leading "body." or "body[" prefix.
+  const cleaned = String(path).replace(/^body\.?/, "");
+  if (FIELD_LABELS[cleaned]) return FIELD_LABELS[cleaned];
+  // Convert camelCase / dotted names to title case words.
+  return cleaned
+    .split(/[._]/)
+    .filter(Boolean)
+    .map((part) =>
+      /^[a-z]+$/.test(part)
+        ? part.charAt(0).toUpperCase() + part.slice(1)
+        : part
+    )
+    .join(" ");
+};
+
+const translateZodIssue = (issue) => {
+  const message = String(issue?.message || "");
+  const code = issue?.code;
+  const label = prettyLabel(
+    Array.isArray(issue?.path) ? issue.path.join(".") : ""
+  );
+
+  if (code === "invalid_string" && /invalid email/i.test(message)) {
+    return `${label} is not a valid email address.`;
+  }
+  if (code === "invalid_format" && issue?.format === "email") {
+    return `${label} is not a valid email address.`;
+  }
+  if (code === "too_small" && /email/i.test(message)) {
+    return `${label} is not a valid email address.`;
+  }
+  if (code === "invalid_type" && /received undefined|null/i.test(message)) {
+    return `Please fill in ${label}.`;
+  }
+  if (code === "too_small") {
+    return `${label} ${message.includes("array") ? "needs at least one entry" : "is too short"}. Please provide a longer value.`;
+  }
+  if (code === "too_big") {
+    return `${label} is too long. Please shorten the value.`;
+  }
+  if (code === "invalid_enum_value") {
+    return `${label} is not a supported option.`;
+  }
+
+  const generic = ZOD_CODE_MESSAGES[code] || "is invalid.";
+  return `${label} ${generic}`;
+};
+
+const translateZodIssues = (details) => {
+  const zodIssues = Array.isArray(details?.zodIssues)
+    ? details.zodIssues
+    : null;
+  if (zodIssues && zodIssues.length > 0) {
+    const translated = zodIssues
+      .map(translateZodIssue)
+      .filter(Boolean);
+    if (translated.length === 1) return translated[0];
+    if (translated.length > 1) {
+      return `${translated[0]} (and ${translated.length - 1} other field${translated.length === 2 ? "" : "s"} need attention too)`;
+    }
+  }
+
+  // Fallback to the structured "issues" string array if the backend only
+  // serialized summary lines (older payloads).
+  const issues = Array.isArray(details?.issues) ? details.issues : [];
+  if (issues.length > 0) {
+    return "Some fields need attention. Please review the form and try again.";
+  }
+
+  return null;
+};
+
 export const extractApiErrorMessage = (payload) => {
+  // First, try to translate a structured Zod 400 into plain English.
+  const details = payload?.error?.details || payload?.details;
+  const translated = translateZodIssues(details);
+  if (translated) return translated;
+
   if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
-    return payload.errors[0]?.message;
+    const first = payload.errors[0]?.message;
+    if (first) return first;
   }
 
   if (typeof payload?.message === "string" && payload.message.trim()) {
@@ -199,7 +313,7 @@ export const extractApiErrorMessage = (payload) => {
     return payload.detail;
   }
 
-  return "Request failed";
+  return "Something went wrong. Please try again.";
 };
 
 export const apiRequest = async (

@@ -106,7 +106,7 @@ const UserManagementPage = () => {
     <div>
       <PageHeader
         title="User Management"
-        description="Manage clients, notaries, verification status, and platform access."
+        description="Manage clients, notaries, and platform access."
         actions={
           <Link to="/users/new?type=client">
             <Button icon={Plus} size="lg">
@@ -154,7 +154,6 @@ const UserManagementPage = () => {
                 <th className="px-6 py-5">Role</th>
                 <th className="px-6 py-5">Company / Area</th>
                 <th className="px-6 py-5">Status</th>
-                <th className="px-6 py-5">Verification</th>
                 <th className="px-6 py-5">Actions</th>
               </tr>
             </thead>
@@ -183,9 +182,6 @@ const UserManagementPage = () => {
                     </td>
                     <td className="px-6 py-6">
                       <StatusBadge status={user.status} />
-                    </td>
-                    <td className="px-6 py-6">
-                      <StatusBadge status={user.verification} />
                     </td>
                     <td className="px-6 py-6">
                       <div className="flex items-center gap-4">

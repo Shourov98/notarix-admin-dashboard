@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Building2,
@@ -54,9 +54,20 @@ const requiredNotaryDocs = [
 const UserFormPage = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialType = searchParams.get("type") === "notary" ? "notary" : "client";
   const [type, setType] = useState(initialType);
+
+  // Keep the URL `?type=` query param in sync with the active tab so users
+  // can see at a glance whether they're on the Client or Notary form, and so
+  // browser refresh preserves the tab they were working on.
+  useEffect(() => {
+    if (type !== initialType) {
+      const next = new URLSearchParams(searchParams);
+      next.set("type", type);
+      setSearchParams(next, { replace: true });
+    }
+  }, [type, initialType, searchParams, setSearchParams]);
   const { createClientStatus, createNotaryStatus } = useAppSelector(selectAdminConsole);
   const isClient = type === "client";
   const documentList = useMemo(() => (isClient ? requiredClientDocs : requiredNotaryDocs), [isClient]);
@@ -185,7 +196,7 @@ const UserFormPage = () => {
 
         navigate("/users");
       } catch (error) {
-        toast.error(error || "Unable to create notary.");
+        toast.error(error || "We couldn't create the notary account. Please review the form and try again.");
       }
       return;
     }
@@ -224,7 +235,7 @@ const UserFormPage = () => {
 
       navigate("/users");
     } catch (error) {
-      toast.error(error || "Unable to create client.");
+      toast.error(error || "We couldn't create the client account. Please review the form and try again.");
     }
   };
 
@@ -394,6 +405,7 @@ const UserFormPage = () => {
                   />
                   <Field
                     label="Email"
+                    type="email"
                     required
                     placeholder="email@company.com"
                     value={formState.primaryContact.email}
@@ -418,6 +430,7 @@ const UserFormPage = () => {
                   />
                   <Field
                     label="Email"
+                    type="email"
                     placeholder="email@company.com"
                     value={formState.secondaryContact.email}
                     onChange={(event) => updateSection("secondaryContact", "email", event.target.value)}
@@ -445,6 +458,7 @@ const UserFormPage = () => {
                   />
                   <Field
                     label="Email Address"
+                    type="email"
                     required
                     placeholder="john@example.com"
                     value={formState.personalInfo.email}
@@ -600,6 +614,7 @@ const UserFormPage = () => {
             <div className="grid gap-5 md:grid-cols-2">
               <Field
                 label="Login Email"
+                type="email"
                 required
                 placeholder="admin@company.com"
                 className="md:col-span-2"
