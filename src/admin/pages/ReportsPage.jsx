@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
+  Award,
   BarChart3,
   CalendarRange,
   Download,
   Landmark,
+  Mail,
   ReceiptText,
   ShieldCheck,
   Users,
@@ -77,6 +80,31 @@ const exportReport = async (path, filters, filename) => {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+};
+
+const AVATAR_TONES = [
+  "bg-blue-100 text-blue-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-orange-100 text-orange-700",
+  "bg-rose-100 text-rose-700",
+  "bg-purple-100 text-purple-700",
+  "bg-cyan-100 text-cyan-700",
+];
+
+const initialsFromName = (name = "") =>
+  String(name)
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "NX";
+
+const toneFromSeed = (seed = "") => {
+  const hash = String(seed)
+    .split("")
+    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
 };
 
 const ReportsPage = () => {
@@ -327,18 +355,71 @@ const ReportsPage = () => {
             <h2 className="text-2xl font-semibold">Top Notaries</h2>
           </div>
           <div className="space-y-4">
-            {topNotaries.slice(0, 5).map((notary) => (
-              <div key={notary.notaryId} className="rounded-xl border border-[var(--color-border)] p-4">
-                <p className="font-bold text-slate-900">{notary.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{notary.email}</p>
-                <div className="mt-3 flex items-center justify-between text-sm">
-                  <span>{notary.completedOrders} completed</span>
-                  <span className="font-semibold text-[var(--color-brand-primary)]">
-                    {toCurrency(notary.totalPayout)}
-                  </span>
+            {topNotaries.slice(0, 5).map((notary, index) => {
+              const seed = notary.notaryId || notary.email || notary.name || "";
+              const tone = toneFromSeed(seed);
+              const initials = initialsFromName(notary.name);
+              const fullEmail = notary.email || "";
+              const isTopPerformer = index === 0;
+
+              return (
+                <div
+                  key={notary.notaryId}
+                  className="flex items-start gap-4 rounded-xl border border-[var(--color-border)] p-4 transition-colors hover:border-[var(--color-brand-primary)] hover:bg-blue-50/40"
+                >
+                  <div className="relative shrink-0">
+                    <span
+                      className={`grid h-11 w-11 place-items-center rounded-full text-sm font-extrabold ${tone}`}
+                    >
+                      {initials}
+                    </span>
+                    {isTopPerformer ? (
+                      <span
+                        className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-amber-400 text-white shadow"
+                        aria-label="Top performer"
+                        title="Top performer"
+                      >
+                        <Award className="h-3 w-3" />
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-bold text-slate-900">{notary.name}</p>
+                      <span
+                        className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                          isTopPerformer
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        #{index + 1}
+                      </span>
+                    </div>
+                    <div
+                      className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500"
+                      title={fullEmail}
+                    >
+                      <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <span className="truncate">{fullEmail || "—"}</span>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                        {notary.completedOrders || 0} completed
+                      </span>
+                      <span className="font-bold text-[var(--color-brand-primary)]">
+                        {toCurrency(notary.totalPayout)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
+            {topNotaries.length === 0 && status !== "loading" ? (
+              <div className="rounded-xl border border-dashed border-slate-300 p-5 text-center text-sm text-slate-600">
+                No notary performance data is available for the selected period yet.
               </div>
-            ))}
+            ) : null}
           </div>
         </Card>
 
@@ -361,7 +442,14 @@ const ReportsPage = () => {
               <tbody>
                 {orderRows.slice(0, 8).map((order) => (
                   <tr key={order.orderId} className="border-t border-slate-200">
-                    <td className="px-6 py-4 font-semibold">#{order.orderId}</td>
+                    <td className="px-6 py-4 font-semibold">
+                      <Link
+                        to={`/orders/${order.orderId}`}
+                        className="font-bold text-[var(--color-brand-primary)] underline-offset-2 hover:underline"
+                      >
+                        #{order.orderId}
+                      </Link>
+                    </td>
                     <td className="px-6 py-4">{order.clientCompany || order.clientName}</td>
                     <td className="px-6 py-4">{order.serviceType}</td>
                     <td className="px-6 py-4">{toCurrency(order.feeAmount)}</td>
