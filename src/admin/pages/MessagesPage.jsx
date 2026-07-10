@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Download,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
+  MoreVertical,
   Paperclip,
   Search,
   Send,
@@ -83,6 +85,7 @@ const MessagesPage = () => {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("all"); // "all" | "clients" | "notaries" | "unread"
   const socketRef = useRef(null);
   const rawSocketUrl =
     import.meta.env.VITE_SOCKET_URL?.trim() ||
@@ -283,10 +286,33 @@ const MessagesPage = () => {
   const counterpartRole = activeConversation?.counterpart?.role || "";
   const counterpartName = activeConversation?.counterpart?.name || "Select a conversation";
 
+  const visibleConversations = useMemo(() => {
+    return filteredConversations.filter((conversation) => {
+      if (activeFilter === "clients") {
+        return conversation.counterpart?.role !== "Notary";
+      }
+      if (activeFilter === "notaries") {
+        return conversation.counterpart?.role === "Notary";
+      }
+      if (activeFilter === "unread") {
+        return Boolean(conversation.unreadCount && conversation.unreadCount > 0);
+      }
+      return true;
+    });
+  }, [filteredConversations, activeFilter]);
+
   return (
     <div className="grid h-[calc(100vh-10rem)] min-h-0 gap-0 overflow-hidden rounded-lg border border-[var(--color-border)] bg-white lg:grid-cols-[380px_minmax(0,1fr)]">
       <aside className="flex min-h-0 flex-col border-r border-[var(--color-border)] bg-[#f8f7ff] p-6">
-        <h1 className="text-2xl font-semibold">Messages</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">Messages</h1>
+          {activeConversation?.orderId ? (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-bold uppercase tracking-widest text-[var(--color-brand-primary)] shadow-sm">
+              Order #{activeConversation.orderId}
+            </span>
+          ) : null}
+        </div>
+
         <div className="relative mt-5">
           <Search className="notarix-search-icon absolute top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
           <input
@@ -297,40 +323,79 @@ const MessagesPage = () => {
           />
         </div>
 
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          {[
+            { id: "all", label: "All" },
+            { id: "clients", label: "Clients" },
+            { id: "notaries", label: "Notaries" },
+            { id: "unread", label: "Unread" },
+          ].map((pill) => {
+            const isPillActive = activeFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setActiveFilter(pill.id)}
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+                  isPillActive
+                    ? "bg-[var(--color-brand-primary)] text-white"
+                    : "bg-white text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {pill.label}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="notarix-scrollbar mt-7 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
-          {filteredConversations.map((conversation) => {
+          {visibleConversations.map((conversation) => {
             const isActive = conversation.id === activeConversationId;
+            const role = conversation.counterpart?.role;
+            const isNotary = role === "Notary";
+            const unread = conversation.unreadCount || 0;
             return (
               <button
                 key={conversation.id}
                 type="button"
                 onClick={() => setActiveConversationId(conversation.id)}
-                className={`flex w-full items-center gap-4 rounded-lg p-4 text-left ${
+                className={`flex w-full items-start gap-4 rounded-lg p-4 text-left transition-colors ${
                   isActive
                     ? "border-l-4 border-[var(--color-brand-primary)] bg-[#efedfb]"
-                    : "hover:bg-white/80"
+                    : "border-l-4 border-transparent hover:bg-white/80"
                 }`}
               >
                 <Avatar
                   name={conversation.counterpart?.name || conversation.title}
-                  tone={
-                    conversation.counterpart?.role === "Notary"
-                      ? "bg-orange-100 text-orange-700"
-                      : "bg-blue-100 text-blue-700"
-                  }
+                  tone={isNotary ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate font-bold">
                       {conversation.counterpart?.name || conversation.title}
                     </p>
-                    <span className="text-xs text-slate-500">
+                    <span className="shrink-0 text-xs text-slate-500">
                       {formatMessageTime(conversation.lastMessageAt)}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-xs font-bold uppercase tracking-widest text-[var(--color-brand-primary)]">
-                    #{conversation.orderId}
-                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    {role ? (
+                      <span
+                        className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest ${
+                          isNotary
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {role}
+                      </span>
+                    ) : null}
+                    {unread > 0 ? (
+                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1.5 text-[10px] font-bold text-white">
+                        {unread}
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-2 truncate text-sm text-slate-500">
                     {conversation.lastMessagePreview || "No messages yet"}
                   </p>
@@ -339,36 +404,55 @@ const MessagesPage = () => {
             );
           })}
 
-          {filteredConversations.length === 0 ? (
+          {visibleConversations.length === 0 ? (
             <p className="rounded-lg bg-white p-4 text-sm text-slate-500">
-              {loadingConversations ? "Loading conversations..." : "No conversations available yet."}
+              {loadingConversations
+                ? "Loading conversations..."
+                : `No conversations match the ${activeFilter} filter.`}
             </p>
           ) : null}
         </div>
       </aside>
 
       <section className="flex min-h-0 min-w-0 flex-col">
-        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-7 py-4">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-7 py-5">
           <div className="flex items-center gap-4">
             <Avatar
               name={counterpartName}
               tone={counterpartRole === "Notary" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}
             />
             <div>
-              <p className="font-bold">{counterpartName}</p>
-              <div className="mt-1 flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">{counterpartName}</h2>
+                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" />
+                <span className="text-xs font-semibold uppercase tracking-widest text-emerald-600">
+                  Online
+                </span>
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                 {counterpartRole ? <StatusBadge status={counterpartRole} /> : null}
                 {activeConversation?.orderId ? (
-                  <span className="text-sm text-slate-500">Order #{activeConversation.orderId}</span>
+                  <span>Order #{activeConversation.orderId}</span>
                 ) : null}
               </div>
             </div>
           </div>
-          {activeConversation?.orderId ? (
-            <Link to={`/orders/${activeConversation.orderId}`}>
-              <Button variant="secondary" size="sm">View Order</Button>
-            </Link>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {activeConversation?.orderId ? (
+              <Link to={`/orders/${activeConversation.orderId}`}>
+                <Button variant="secondary" size="sm" icon={ExternalLink}>
+                  View Order #{activeConversation.orderId}
+                </Button>
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
+              aria-label="More options"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="notarix-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/40 p-7">

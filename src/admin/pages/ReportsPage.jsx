@@ -21,7 +21,6 @@ import {
   Button,
   Card,
   MetricCard,
-  PageHeader,
   StatusBadge,
 } from "../components/ui";
 import { apiRequest, buildApiUrl } from "../../services/httpClient";
@@ -154,69 +153,74 @@ const ReportsPage = () => {
 
   return (
     <div>
-      <PageHeader
-        title="Reports & Analytics"
-        description="Live order, payout, notary, and client activity insights from the production workflow."
-        actions={
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm font-semibold text-slate-600">
-                From
-                <input
-                  type="date"
-                  value={filters.dateFrom}
-                  onChange={(event) =>
-                    setFilters((current) => ({ ...current, dateFrom: event.target.value }))
-                  }
-                  className="ml-2 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-sm font-semibold text-slate-600">
-                To
-                <input
-                  type="date"
-                  value={filters.dateTo}
-                  onChange={(event) =>
-                    setFilters((current) => ({ ...current, dateTo: event.target.value }))
-                  }
-                  className="ml-2 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
-                />
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-11 rounded-lg border border-[var(--color-border)] px-3 text-sm font-semibold text-slate-700"
-              >
-                <option value="">All statuses</option>
-                <option value="Pending Admin Review">Pending Admin Review</option>
-                <option value="Accepted By Admin">Accepted By Admin</option>
-                <option value="Notary Assigned">Notary Assigned</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
-            <Button
-              variant="secondary"
-              icon={CalendarRange}
-            >
-              {selectedDateLabel}
-            </Button>
-            <Button
-              icon={Download}
-              onClick={() => exportReport("/admin/reports/orders", { ...filters, status: statusFilter }, "orders-report.csv")}
-            >
-              Export Orders
-            </Button>
-            <Button
-              variant="secondary"
-              icon={Download}
-              onClick={() => exportReport("/admin/reports/payments", filters, "payments-report.csv")}
-            >
-              Export Payments
-            </Button>
-          </>
-        }
-      />
+      <div className="mb-8">
+        <h1 className="text-3xl font-extrabold tracking-normal text-[var(--color-ink)]">
+          Reports &amp; Analytics
+        </h1>
+        <p className="mt-1 text-base text-slate-600">
+          Live order, payout, notary, and client activity insights from the production workflow.
+        </p>
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+            From
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, dateFrom: event.target.value }))
+              }
+              className="h-11 rounded-lg border border-[var(--color-border)] px-3 text-sm font-semibold text-slate-700"
+            />
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600">
+            To
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(event) =>
+                setFilters((current) => ({ ...current, dateTo: event.target.value }))
+              }
+              className="h-11 rounded-lg border border-[var(--color-border)] px-3 text-sm font-semibold text-slate-700"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            className="h-11 rounded-lg border border-[var(--color-border)] px-3 text-sm font-semibold text-slate-700"
+          >
+            <option value="">All statuses</option>
+            <option value="Pending Admin Review">Pending Admin Review</option>
+            <option value="Accepted By Admin">Accepted By Admin</option>
+            <option value="Notary Assigned">Notary Assigned</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Completed">Completed</option>
+          </select>
+          <Button variant="secondary" icon={CalendarRange}>
+            {selectedDateLabel}
+          </Button>
+          <Button
+            icon={Download}
+            onClick={() =>
+              exportReport(
+                "/admin/reports/orders",
+                { ...filters, status: statusFilter },
+                "orders-report.csv"
+              )
+            }
+          >
+            Export Orders
+          </Button>
+          <Button
+            variant="secondary"
+            icon={Download}
+            onClick={() =>
+              exportReport("/admin/reports/payments", filters, "payments-report.csv")
+            }
+          >
+            Export Payments
+          </Button>
+        </div>
+      </div>
 
       {status === "error" ? (
         <Card className="p-6 text-red-600">{error}</Card>
