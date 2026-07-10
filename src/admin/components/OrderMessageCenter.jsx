@@ -119,7 +119,7 @@ const OrderMessageCenter = ({ orderId, orderLabel }) => {
       const payload = await apiRequest(`/conversations/order/${orderId}`);
       const conversation = payload?.data || payload || null;
       if (!conversation?.id) {
-        setLoadError("No conversation is attached to this order yet.");
+        setLoadError("Conversation not found for this order.");
         setConversation(null);
         setMessages([]);
         setParticipants([]);
@@ -131,7 +131,7 @@ const OrderMessageCenter = ({ orderId, orderLabel }) => {
     } catch (error) {
       if (error?.status === 404) {
         setLoadError(
-          "No conversation is attached to this order yet. Assign a notary to start the message thread."
+          "Conversation not found for this order."
         );
       } else {
         setLoadError(error?.message || "Unable to load order messages.");
@@ -304,7 +304,8 @@ const OrderMessageCenter = ({ orderId, orderLabel }) => {
           <div>
             <h2 className="text-xl font-bold text-slate-900">Message Center</h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Conversation thread for this order — admin, client, and notary.
+              Conversation thread for this order — admin, client, and (once assigned) notary.
+              Pre-assignment messages stay private between admin and client.
             </p>
           </div>
         </div>
@@ -533,7 +534,7 @@ const OrderMessageCenter = ({ orderId, orderLabel }) => {
               placeholder={
                 conversation?.id
                   ? "Type your message..."
-                  : "Conversation opens once a notary is assigned."
+                  : "Loading conversation..."
               }
               disabled={!conversation?.id || sending}
               className="h-10 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
@@ -549,7 +550,7 @@ const OrderMessageCenter = ({ orderId, orderLabel }) => {
           </Button>
         </div>
         <p className="mt-3 text-center text-xs text-slate-500">
-          Messages are archived on the order record and only visible to conversation participants.
+          Messages before a notary is assigned stay private to admin and client. The notary only sees messages sent after they join.
         </p>
       </div>
     </Card>

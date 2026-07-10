@@ -406,6 +406,30 @@ export const reassignAdminOrderNotary = createAsyncThunk(
   }
 );
 
+// Generic admin status update — used for Cancel Order and Mark as Completed
+// actions on the Order Details page. The backend endpoint already enforces
+// valid transitions and emits the appropriate notifications.
+export const updateAdminOrderStatus = createAsyncThunk(
+  "adminConsole/updateAdminOrderStatus",
+  async ({ orderId, status, note }, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: { status, note },
+      });
+      const nextOrder = payload?.data || payload;
+      await Promise.all([
+        dispatch(fetchAdminConsole()),
+        dispatch(fetchAdminOrders()),
+        dispatch(fetchAdminOrder(orderId)),
+      ]);
+      return nextOrder;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update order status.");
+    }
+  }
+);
+
 export const createClient = createAsyncThunk(
   "adminConsole/createClient",
   async (clientPayload, { dispatch, rejectWithValue }) => {
@@ -829,25 +853,6 @@ export const revokeSecuritySession = createAsyncThunk(
   }
 );
 
-export const updateAdminOrderStatus = createAsyncThunk(
-  "adminConsole/updateAdminOrderStatus",
-  async ({ orderId, status, note }, { dispatch, rejectWithValue }) => {
-    try {
-      const payload = await apiRequest(`/admin/orders/${orderId}/status`, {
-        method: "PATCH",
-        body: { status, note },
-      });
-      await Promise.all([
-        dispatch(fetchAdminOrder(orderId)),
-        dispatch(fetchAdminOrders()),
-      ]);
-      return payload?.data || payload;
-    } catch (error) {
-      return rejectWithValue(error?.message || "Unable to update order status.");
-    }
-  }
-);
-
 const adminConsoleSlice = createSlice({
   name: "adminConsole",
   initialState: {
@@ -1123,6 +1128,19 @@ const adminConsoleSlice = createSlice({
       .addCase(reassignAdminOrderNotary.rejected, (state, action) => {
         state.orderActionStatus = "error";
         state.orderActionError = action.payload || "Unable to reassign notary.";
+      })
+      .addCase(updateAdminOrderStatus.pending, (state) => {
+        state.orderActionStatus = "loading";
+        state.orderActionError = null;
+      })
+      .addCase(updateAdminOrderStatus.fulfilled, (state, action) => {
+        state.orderActionStatus = "ready";
+        state.orderActionError = null;
+        state.activeOrder = action.payload || state.activeOrder;
+      })
+      .addCase(updateAdminOrderStatus.rejected, (state, action) => {
+        state.orderActionStatus = "error";
+        state.orderActionError = action.payload || "Unable to update order status.";
       })
       .addCase(fetchAdmins.pending, (state) => {
         state.adminsStatus = "loading";

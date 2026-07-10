@@ -3,12 +3,20 @@ import { Link, useParams } from "react-router-dom";
 import {
   Building2,
   CalendarDays,
+  Check,
   CheckCircle2,
+  ChevronRight,
+  CircleDot,
+  Edit3,
+  Eye,
   FileText,
   FolderOpen,
   MapPin,
+  MessageSquare,
+  Phone,
   RefreshCcw,
   Search,
+  Send,
   ShieldCheck,
   UserPlus,
   UserRound,
@@ -17,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { apiRequest, buildApiUrl } from "../../services/httpClient";
 import {
+  Avatar,
   Button,
   Card,
   Modal,
@@ -35,6 +44,7 @@ import {
   rejectAdminOrder,
   reassignAdminOrderNotary,
   selectAdminConsole,
+  updateAdminOrderStatus,
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 
@@ -51,9 +61,31 @@ const toDirectoryNotary = (notary) => ({
   ].slice(0, 3),
 });
 
+const formatBytes = (bytes) => {
+  if (!bytes || bytes <= 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, exponent);
+  return `${value.toFixed(value >= 10 || exponent === 0 ? 0 : 1)} ${units[exponent]}`;
+};
+
+const formatShortDate = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+};
+
+const formatTimelineStamp = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+};
+
 const InfoRow = ({ label, value }) => (
   <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-4">
-    <p className="text-xs font-bold uppercase text-slate-500">{label}</p>
+    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
     <p className="mt-2 font-semibold text-slate-900">{value || "Not provided"}</p>
   </div>
 );
@@ -294,6 +326,46 @@ const RejectDocumentModal = ({ open, onClose, onSubmit, status, documentName }) 
   );
 };
 
+const CancelOrderModal = ({ open, onClose, onSubmit, status }) => {
+  const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    if (open) setReason("");
+  }, [open]);
+
+  const handleSubmit = async () => {
+    if (!reason.trim()) {
+      toast.error("Add a short cancellation reason.");
+      return;
+    }
+    await onSubmit(reason.trim());
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Cancel Order"
+      subtitle="This action cannot be undone. The order will move to a terminal Cancelled state."
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={onClose}>Keep Order</Button>
+          <Button variant="dangerSolid" onClick={handleSubmit} disabled={status === "loading"}>
+            {status === "loading" ? "Cancelling..." : "Cancel Order"}
+          </Button>
+        </div>
+      }
+    >
+      <textarea
+        className="min-h-[120px] w-full rounded-lg border border-[var(--color-border)] px-3 py-3"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        placeholder="Explain why this order is being cancelled."
+      />
+    </Modal>
+  );
+};
+
 const OrderDetailsPage = () => {
   const { id = "" } = useParams();
   const dispatch = useAppDispatch();
@@ -311,6 +383,7 @@ const OrderDetailsPage = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [documentActionStatus, setDocumentActionStatus] = useState("ready");
   const [documentRejectTarget, setDocumentRejectTarget] = useState(null);
 
@@ -340,6 +413,15 @@ const OrderDetailsPage = () => {
   );
   const canReassign = useMemo(
     () => ["Notary Assigned", "Accepted By Notary", "Assigned", "In Progress"].includes(activeOrder?.workflowStatus || "") || activeOrder?.status === "Assigned",
+    [activeOrder]
+  );
+  const canCancel = useMemo(
+    () => !["Completed", "Cancelled", "Rejected By Admin"].includes(activeOrder?.workflowStatus || ""),
+    [activeOrder]
+  );
+  const canMarkCompleted = useMemo(
+    () => activeOrder?.workflowStatus === "In Progress" ||
+           (activeOrder?.workflowStatus === "Accepted By Notary" && Boolean(activeOrder?.notaryId)),
     [activeOrder]
   );
 
@@ -407,6 +489,33 @@ const OrderDetailsPage = () => {
     }
   };
 
+  const handleCancel = async (note) => {
+    try {
+      await dispatch(
+        updateAdminOrderStatus({ orderId: id, status: "Cancelled", note })
+      ).unwrap();
+      toast.success("Order cancelled.");
+      setShowCancelModal(false);
+    } catch (error) {
+      toast.error(error || "Unable to cancel order.");
+    }
+  };
+
+  const handleMarkCompleted = async () => {
+    try {
+      await dispatch(
+        updateAdminOrderStatus({
+          orderId: id,
+          status: "Completed",
+          note: "Order marked as completed by admin.",
+        })
+      ).unwrap();
+      toast.success("Order marked as completed.");
+    } catch (error) {
+      toast.error(error || "Unable to mark order as completed.");
+    }
+  };
+
   const handleDocumentStatusUpdate = async (documentId, status, reviewNote = "") => {
     try {
       setDocumentActionStatus("loading");
@@ -439,253 +548,494 @@ const OrderDetailsPage = () => {
     );
   }
 
+  const notaryName = activeOrder.notaryDetails?.name || activeOrder.notary;
+  const notaryEmail = activeOrder.notaryDetails?.email || activeOrder.notaryEmail || "";
+  const notaryPhone = activeOrder.notaryDetails?.phone || "";
+  const notaryAvatar = activeOrder.notaryDetails?.avatar || null;
+  const isRon = activeOrder.type === "RON";
+  const propertyAddress = [
+    activeOrder.propertyAddress?.line1,
+    activeOrder.propertyAddress?.city,
+    activeOrder.propertyAddress?.state,
+    activeOrder.propertyAddress?.zip,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const documents = activeOrder.documents || [];
+  const timeline = (activeOrder.timeline || []).slice().reverse();
+  const canOpenChat = Boolean(activeOrder.rawId || activeOrder.id);
+
   return (
-    <div className="space-y-8">
-      <PageHeader
-        eyebrow="Order Details"
-        title={activeOrder.id}
-        description={`${activeOrder.client} • ${activeOrder.service}`}
-        actions={
-          <>
-            <StatusBadge status={activeOrder.status} />
-            <Link to="/orders">
-              <Button variant="secondary">Back to Orders</Button>
-            </Link>
-          </>
-        }
-      />
+    <div className="space-y-7">
+      {/* Page header: matches mockup eyebrow + ID + meta + 3 actions */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+            Order Details
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
+            {activeOrder.id || activeOrder.rawId}
+          </h1>
+          {activeOrder.createdAt ? (
+            <p className="mt-2 text-sm text-slate-500">
+              Created {formatTimelineStamp(activeOrder.createdAt)}
+            </p>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="secondary"
+            icon={Edit3}
+            onClick={() => toast.info("Edit flow not yet wired in this build.")}
+          >
+            Edit Order
+          </Button>
+          <Button
+            icon={MessageSquare}
+            onClick={() => {
+              const target = document.getElementById("order-message-center");
+              if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            disabled={!canOpenChat}
+          >
+            Open Chat
+          </Button>
+          <Button
+            variant="danger"
+            icon={XCircle}
+            onClick={() => setShowCancelModal(true)}
+            disabled={!canCancel || orderActionStatus === "loading"}
+          >
+            Cancel Order
+          </Button>
+        </div>
+      </div>
 
       <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-7">
+          {/* Top row: Client Info + Borrower Info */}
+          <div className="grid gap-5 md:grid-cols-2">
+            <Card className="p-6">
+              <div className="flex items-center justify-between gap-3">
+                <SectionTitle icon={Building2} title="Client Info" />
+                <Link
+                  to={`/users?focusClient=${encodeURIComponent(activeOrder.clientUserId || activeOrder.clientEmail || "")}`}
+                  className="text-xs font-semibold text-[var(--color-brand-primary)] hover:underline"
+                >
+                  View Profile
+                </Link>
+              </div>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Company Name
+                  </p>
+                  <p className="mt-1.5 text-base font-bold text-slate-900">
+                    {activeOrder.client || "Not provided"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Primary Contact
+                  </p>
+                  <p className="mt-1.5 text-base font-semibold text-slate-900">
+                    {activeOrder.primaryContactName ||
+                      activeOrder.clientContactName ||
+                      activeOrder.clientName ||
+                      "Not provided"}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <div className="flex items-center justify-between gap-3">
+                <SectionTitle icon={UserRound} title="Borrower Info" />
+                <a
+                  href={activeOrder.borrowerEmail ? `mailto:${activeOrder.borrowerEmail}` : "#"}
+                  className="text-xs font-semibold text-[var(--color-brand-primary)] hover:underline"
+                >
+                  Contact
+                </a>
+              </div>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                    Full Name
+                  </p>
+                  <p className="mt-1.5 text-base font-bold text-slate-900">
+                    {activeOrder.borrower || "Not provided"}
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Phone
+                    </p>
+                    <p className="mt-1.5 text-sm font-semibold text-slate-900">
+                      {activeOrder.borrowerPhone || "Not provided"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                      Email
+                    </p>
+                    <p className="mt-1.5 text-sm font-semibold text-slate-900 break-all">
+                      {activeOrder.borrowerEmail || "Not provided"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Property & Signing Details */}
           <Card className="p-6">
-            <SectionTitle icon={Building2} title="Client Information" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoRow label="Client" value={activeOrder.client} />
-              <InfoRow label="Client Email" value={activeOrder.clientEmail} />
-              <InfoRow label="Vendor Code" value={activeOrder.vendorCode} />
-              <InfoRow label="Workflow Status" value={activeOrder.workflowStatus} />
+            <SectionTitle icon={MapPin} title="Property & Signing Details" />
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-[var(--color-border)] bg-slate-50 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  Location
+                </p>
+                <p className="mt-2 text-base font-bold text-slate-900 break-words">
+                  {propertyAddress || "Not provided"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-[var(--color-border)] bg-slate-50 p-5">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  Signing Type
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-100 text-blue-700">
+                    {isRon ? <MessageSquare className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
+                  </span>
+                  <span className="text-base font-bold text-slate-900">
+                    {isRon ? "Remote Online Meeting" : "In-person Meeting"}
+                  </span>
+                </div>
+              </div>
             </div>
           </Card>
 
+          {/* Documents */}
           <Card className="p-6">
-            <SectionTitle icon={UserRound} title="Borrower Information" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoRow label="Borrower" value={activeOrder.borrower} />
-              <InfoRow label="Borrower Email" value={activeOrder.borrowerEmail} />
-              <InfoRow label="Borrower Phone" value={activeOrder.borrowerPhone} />
-              <InfoRow label="Secondary Signer" value={activeOrder.hasSecondarySigner ? "Yes" : "No"} />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <SectionTitle icon={MapPin} title="Property & Signing" />
-            <div className="grid gap-4 md:grid-cols-2">
-              <InfoRow
-                label="Property Address"
-                value={[
-                  activeOrder.propertyAddress?.line1,
-                  activeOrder.propertyAddress?.city,
-                  activeOrder.propertyAddress?.state,
-                  activeOrder.propertyAddress?.zip,
-                ]
-                  .filter(Boolean)
-                  .join(", ")}
-              />
-              <InfoRow label="Schedule" value={`${activeOrder.signingDate} ${activeOrder.signingTime}`} />
-              <InfoRow label="Fee" value={`$${Number(activeOrder.payment?.feeAmount || 0).toFixed(2)}`} />
-              <InfoRow label="Payment Status" value={activeOrder.payment?.paymentStatus} />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <SectionTitle icon={FolderOpen} title="Order Documents" />
-            <div className="space-y-3">
-              {(activeOrder.documents || []).length === 0 ? (
-                <p className="text-sm text-slate-600">No client documents uploaded yet.</p>
+            <SectionTitle icon={FolderOpen} title="Documents" />
+            <div className="mt-5 space-y-3">
+              {documents.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-600">
+                  No client documents uploaded yet.
+                </div>
               ) : (
-                activeOrder.documents.map((document) => (
-                  <div key={document.id} className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-[var(--color-brand-primary)]" />
-                        <div>
-                          <p className="font-semibold text-slate-900">{document.name}</p>
-                          <p className="text-xs text-slate-500">{document.mimeType || "Uploaded file"}</p>
+                documents.map((document) => {
+                  const viewHref = document.url
+                    ? buildApiUrl(document.url, { skipPrefix: true, withToken: true })
+                    : null;
+                  return (
+                    <div
+                      key={document.id}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-[var(--color-border)] bg-white px-5 py-4 transition-shadow hover:shadow-sm"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-rose-50 text-rose-600">
+                          <FileText className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-slate-900" title={document.name}>
+                            {document.name}
+                          </p>
+                          <p className="mt-0.5 text-xs text-slate-500">
+                            Uploaded {formatShortDate(document.uploadedAt)}
+                            {document.size ? ` • ${formatBytes(document.size)}` : ""}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <StatusBadge status={document.status || "Pending"} />
-                        {document.url ? (
-                          <a href={buildApiUrl(document.url, { skipPrefix: true, withToken: true })} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[var(--color-brand-primary)]">
-                            Open
+                        {viewHref ? (
+                          <a
+                            href={viewHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Preview ${document.name}`}
+                            className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[var(--color-brand-primary)]"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </a>
+                        ) : null}
+                        {document.downloadUrl ? (
+                          <a
+                            href={buildApiUrl(document.downloadUrl, { skipPrefix: true, withToken: true })}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label={`Download ${document.name}`}
+                            className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[var(--color-brand-primary)]"
+                          >
+                            <ChevronRight className="h-4 w-4" />
                           </a>
                         ) : null}
                       </div>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
-                      {document.status !== "Verified" ? (
-                        <Button
-                          size="sm"
-                          icon={ShieldCheck}
-                          onClick={() => handleDocumentStatusUpdate(document.id, "Verified")}
-                          disabled={
-                            documentActionStatus === "loading" || document.status === "Rejected"
-                          }
-                        >
-                          Verify
-                        </Button>
-                      ) : null}
-                      {document.status !== "Rejected" ? (
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          icon={XCircle}
-                          onClick={() => setDocumentRejectTarget({ id: document.id, name: document.name })}
-                          disabled={
-                            documentActionStatus === "loading" || document.status === "Verified"
-                          }
-                        >
-                          Reject
-                        </Button>
-                      ) : null}
-                      {document.status !== "Pending" ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => handleDocumentStatusUpdate(document.id, "Pending")}
-                          disabled={documentActionStatus === "loading"}
-                        >
-                          Mark Pending
-                        </Button>
-                      ) : null}
-                    </div>
-                    {document.reviewNote ? (
-                      document.status === "Rejected" ? (
-                        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-red-600">
-                            Rejection Reason
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-red-700">
-                            {document.reviewNote}
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                            Review Note
-                          </p>
-                          <p className="mt-2 text-sm leading-6 text-slate-600">
-                            {document.reviewNote}
-                          </p>
-                        </div>
-                      )
-                    ) : null}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+
+            {/* Document review actions — kept compact */}
+            {documents.length > 0 ? (
+              <div className="mt-5 space-y-3">
+                {documents.map((document) => (
+                  <div key={`actions-${document.id}`} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-800 truncate" title={document.name}>
+                        {document.name}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {document.status !== "Verified" ? (
+                          <Button
+                            size="sm"
+                            icon={CheckCircle2}
+                            onClick={() => handleDocumentStatusUpdate(document.id, "Verified")}
+                            disabled={documentActionStatus === "loading" || document.status === "Rejected"}
+                          >
+                            Verify
+                          </Button>
+                        ) : null}
+                        {document.status !== "Rejected" ? (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            icon={XCircle}
+                            onClick={() => setDocumentRejectTarget({ id: document.id, name: document.name })}
+                            disabled={documentActionStatus === "loading" || document.status === "Verified"}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
+                        {document.status !== "Pending" ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleDocumentStatusUpdate(document.id, "Pending")}
+                            disabled={documentActionStatus === "loading"}
+                          >
+                            Mark Pending
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    {document.reviewNote ? (
+                      <p className="mt-2 text-xs text-slate-600">
+                        <span className="font-semibold">Note:</span> {document.reviewNote}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </Card>
 
-          {!allOrderDocumentsVerified ? (
-            <Card className="border-amber-200 bg-amber-50 p-6">
-              <SectionTitle icon={ShieldCheck} title="Document Review Required" />
-              <p className="text-sm leading-7 text-amber-800">
-                Admin must verify all client-uploaded order documents before accepting the order or assigning any notary.
+          {/* Pre-assignment admin review actions — visible only while the order is in Pending Admin Review */}
+          {canReview ? (
+            <Card className="border-amber-200 bg-amber-50/70 p-6">
+              <SectionTitle icon={ShieldCheck} title="Admin Review" />
+              <p className="mt-2 text-sm leading-6 text-amber-800">
+                {allOrderDocumentsVerified
+                  ? "All documents are verified. Accept this order to enable notary assignment, or reject it with a reason."
+                  : "Verify every uploaded document before accepting this order."}
               </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                <Button
+                  icon={CheckCircle2}
+                  onClick={handleAccept}
+                  disabled={orderActionStatus === "loading" || !allOrderDocumentsVerified}
+                >
+                  Accept Order
+                </Button>
+                <Button
+                  variant="dangerSolid"
+                  icon={XCircle}
+                  onClick={() => setShowRejectModal(true)}
+                  disabled={orderActionStatus === "loading"}
+                >
+                  Reject Order
+                </Button>
+              </div>
             </Card>
           ) : null}
 
-          <OrderMessageCenter
-            orderId={activeOrder.rawId || String(activeOrder.id || "").replace(/^#/, "")}
-            orderLabel={activeOrder.id}
-          />
+          {/* Message Center */}
+          <div id="order-message-center">
+            <OrderMessageCenter
+              orderId={activeOrder.rawId || String(activeOrder.id || "").replace(/^#/, "")}
+              orderLabel={activeOrder.id}
+            />
+          </div>
         </div>
 
+        {/* Sidebar */}
         <aside className="space-y-7">
-          <Card className="p-6">
-            <SectionTitle icon={ShieldCheck} title="Current Assignment" />
-            <div className="space-y-4">
-              <InfoRow label="Assigned Notary" value={activeOrder.notary} />
-              <InfoRow label="Offer Amount" value={activeOrder.payment?.notaryOfferAmount ? `$${Number(activeOrder.payment.notaryOfferAmount).toFixed(2)}` : "Not set"} />
-              <InfoRow label="Release Days" value={activeOrder.payment?.payoutReleaseDays ? `${activeOrder.payment.payoutReleaseDays} days` : "Not set"} />
+          {/* Quick Actions — bright blue gradient card */}
+          <Card className="overflow-hidden border-0 p-0">
+            <div className="bg-gradient-to-br from-[#3b5bff] via-[#3b5bff] to-[#1f3fdc] p-6 text-white">
+              <div className="flex items-center gap-2">
+                <span className="grid h-8 w-8 place-items-center rounded-lg bg-white/15">
+                  <CircleDot className="h-4 w-4" />
+                </span>
+                <h3 className="text-lg font-bold">Quick Actions</h3>
+              </div>
+              <div className="mt-5 space-y-3">
+                {canReassign ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await loadEligibleNotaries();
+                      setShowReassignModal(true);
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/25"
+                  >
+                    <RefreshCcw className="h-4 w-4" />
+                    Reassign Notary
+                  </button>
+                ) : null}
+                {canMarkCompleted ? (
+                  <button
+                    type="button"
+                    onClick={handleMarkCompleted}
+                    disabled={orderActionStatus === "loading"}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/25 disabled:opacity-60"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Mark as Completed
+                  </button>
+                ) : null}
+                {canAssign ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await loadEligibleNotaries();
+                      setShowAssignModal(true);
+                    }}
+                    disabled={!allOrderDocumentsVerified || orderActionStatus === "loading"}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-white/15 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/25 disabled:opacity-60"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    Assign Notary
+                  </button>
+                ) : null}
+                {!canReassign && !canMarkCompleted && !canAssign ? (
+                  <p className="rounded-lg bg-white/10 p-3 text-xs text-white/80">
+                    Quick actions become available as the order progresses through its workflow.
+                  </p>
+                ) : null}
+              </div>
             </div>
           </Card>
 
+          {/* Assigned Notary */}
           <Card className="p-6">
-            <SectionTitle icon={CalendarDays} title="Admin Actions" />
-            <div className="space-y-3">
-              {canReview ? (
-                <>
-                  <Button className="w-full" icon={CheckCircle2} onClick={handleAccept} disabled={orderActionStatus === "loading" || !allOrderDocumentsVerified}>
-                    Accept Order
-                  </Button>
-                  <Button className="w-full" variant="dangerSolid" icon={XCircle} onClick={() => setShowRejectModal(true)} disabled={orderActionStatus === "loading"}>
-                    Reject Order
-                  </Button>
-                </>
-              ) : null}
-
-              {canAssign ? (
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  icon={UserPlus}
-                  disabled={!allOrderDocumentsVerified}
-                  onClick={async () => {
-                    await loadEligibleNotaries();
-                    setShowAssignModal(true);
-                  }}
-                >
-                  Assign Notary
-                </Button>
-              ) : null}
-
-              {canReassign ? (
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  icon={RefreshCcw}
-                  onClick={async () => {
-                    await loadEligibleNotaries();
-                    setShowReassignModal(true);
-                  }}
-                >
-                  Reassign Notary
-                </Button>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <SectionTitle icon={FileText} title="Notes & Instructions" />
-            <div className="space-y-4">
-              <InfoRow label="Special Instructions" value={activeOrder.specialInstructions || "None"} />
-              <InfoRow label="Admin Review Reason" value={activeOrder.adminReviewReason || "None"} />
-              <InfoRow label="Assignment Notes" value={activeOrder.payment?.assignmentNotes || "None"} />
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <SectionTitle icon={CalendarDays} title="Status Timeline" />
-            <div className="space-y-4">
-              {(activeOrder.timeline || []).length === 0 ? (
-                <p className="text-sm text-slate-600">No status changes recorded yet.</p>
-              ) : (
-                activeOrder.timeline.map((entry) => (
-                  <div key={`${entry.status}-${entry.changedAt}`} className="border-l-2 border-slate-200 pl-4">
-                    <p className="font-semibold text-slate-900">{entry.status}</p>
-                    <p className="text-sm text-slate-600">
-                      {new Date(entry.changedAt).toLocaleString("en-US")}
-                    </p>
-                    {entry.note ? <p className="mt-1 text-sm text-slate-500">{entry.note}</p> : null}
+            <SectionTitle icon={ShieldCheck} title="Assigned Notary" />
+            <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-slate-50 p-4">
+              <div className="flex items-start gap-3">
+                <Avatar
+                  name={notaryName}
+                  tone="bg-blue-100 text-blue-700"
+                  size="md"
+                  src={notaryAvatar}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-900 truncate">{notaryName || "Not assigned"}</p>
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                    <Check className="h-3.5 w-3.5" />
+                    Accepted
                   </div>
+                </div>
+              </div>
+              <div className="mt-4 space-y-2 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Email</span>
+                  <span className="font-semibold text-slate-900 truncate">{notaryEmail || "Not provided"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Phone</span>
+                  <span className="font-semibold text-slate-900">{notaryPhone || "Not provided"}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Payment Details */}
+          <Card className="p-6">
+            <SectionTitle icon={FileText} title="Payment Details" />
+            <div className="mt-4 divide-y divide-slate-100 rounded-xl border border-[var(--color-border)] bg-white">
+              <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                <span className="text-sm font-semibold text-slate-600">Total Fee</span>
+                <span className="text-base font-extrabold text-[var(--color-brand-primary)]">
+                  {activeOrder.fee || `$${Number(activeOrder.feeAmount || 0).toFixed(2)}`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                <span className="text-sm font-semibold text-slate-600">Method</span>
+                <span className="text-sm font-semibold text-slate-900">
+                  {activeOrder.payment?.paymentMethod || "Not set"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                <span className="text-sm font-semibold text-slate-600">Paid Date</span>
+                <span className="text-sm font-semibold text-slate-900">
+                  {activeOrder.payment?.paidDate || "Not paid yet"}
+                </span>
+              </div>
+            </div>
+          </Card>
+
+          {/* Special Instructions */}
+          <Card className="p-6">
+            <h3 className="text-base font-extrabold text-amber-600">Special Instructions</h3>
+            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 p-4 text-sm italic leading-relaxed text-amber-700">
+              {activeOrder.specialInstructions
+                ? `"${activeOrder.specialInstructions}"`
+                : "No special instructions for this order."}
+            </div>
+          </Card>
+
+          {/* Order Timeline — vertical */}
+          <Card className="p-6">
+            <SectionTitle icon={CalendarDays} title="Order Timeline" />
+            <ol className="mt-5 space-y-4">
+              {timeline.length === 0 ? (
+                <li className="text-sm text-slate-600">No status changes recorded yet.</li>
+              ) : (
+                timeline.map((entry, index) => (
+                  <li key={`${entry.status}-${entry.changedAt}-${index}`} className="relative pl-7">
+                    <span className="absolute left-0 top-1 grid h-4 w-4 place-items-center">
+                      <span className="absolute inset-0 rounded-full bg-blue-100" />
+                      <span className="relative h-2 w-2 rounded-full bg-blue-600" />
+                    </span>
+                    {index < timeline.length - 1 ? (
+                      <span className="absolute left-[7px] top-5 h-full w-px bg-blue-100" />
+                    ) : null}
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-blue-600">
+                      {entry.status}
+                    </p>
+                    <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                      {formatTimelineStamp(entry.changedAt)} •{" "}
+                      {new Date(entry.changedAt).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                    {entry.note ? (
+                      <p className="mt-1 text-xs text-slate-500">{entry.note}</p>
+                    ) : null}
+                  </li>
                 ))
               )}
-            </div>
+            </ol>
           </Card>
         </aside>
       </div>
 
+      {/* Modals */}
       <AssignModal
         open={showAssignModal}
         onClose={() => setShowAssignModal(false)}
@@ -732,6 +1082,12 @@ const OrderDetailsPage = () => {
           await handleDocumentStatusUpdate(documentRejectTarget.id, "Rejected", reason);
           setDocumentRejectTarget(null);
         }}
+      />
+      <CancelOrderModal
+        open={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onSubmit={handleCancel}
+        status={orderActionStatus}
       />
     </div>
   );
