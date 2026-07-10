@@ -69,7 +69,7 @@ const triggerAttachmentDownload = async (attachment) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  } catch (error) {
+  } catch {
     toast.error("Unable to start download.");
   }
 };
@@ -89,6 +89,7 @@ const MessagesPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const deepLinkUserId = searchParams.get("to") || "";
   const socketRef = useRef(null);
+  const messagesScrollRef = useRef(null);
   const rawSocketUrl =
     import.meta.env.VITE_SOCKET_URL?.trim() ||
     import.meta.env.VITE_API_BASE_URL?.trim() ||
@@ -172,6 +173,31 @@ const MessagesPage = () => {
       setMessages([]);
     }
   }, [activeConversationId]);
+
+  // Auto-scroll the message thread to the newest message.
+  //  - When a conversation is first opened (or switched to), jump to the
+  //    bottom instantly so the latest message is in view.
+  //  - When new messages arrive while the thread is already pinned to the
+  //    bottom, follow along with a smooth scroll.
+  //  - When the user has scrolled up to read older history, do NOT yank them
+  //    back to the bottom (let them keep reading).
+  useEffect(() => {
+    if (!messagesScrollRef.current) return;
+    if (loadingMessages) return;
+
+    const node = messagesScrollRef.current;
+    const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    const isPinnedToBottom = distanceFromBottom < 120;
+
+    if (isPinnedToBottom || messages.length === 0) {
+      // `instant` isn't a valid ScrollBehavior value in older TS libs but
+      // browsers accept it. Use `auto` as a safe fallback.
+      node.scrollTo({
+        top: node.scrollHeight,
+        behavior: isPinnedToBottom && messages.length > 0 ? "smooth" : "auto",
+      });
+    }
+  }, [messages, loadingMessages, activeConversationId]);
 
   // Deep-link handler: when we land on /messages?to=<userId>, make sure a
   // conversation with that user exists, then select it. Backend endpoint
@@ -413,13 +439,27 @@ const MessagesPage = () => {
                     : "border-l-4 border-transparent hover:bg-white/80"
                 }`}
               >
-                <Avatar
-                  name={conversation.counterpart?.name || conversation.title}
-                  tone={isNotary ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}
-                />
+                <div className="relative shrink-0">
+                  <Avatar
+                    name={conversation.counterpart?.name || conversation.title}
+                    tone={isNotary ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}
+                  />
+                  {unread > 0 ? (
+                    <span
+                      className="absolute -bottom-1 -right-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-white bg-[var(--color-brand-primary)] px-1.5 text-[10px] font-bold leading-none text-white shadow"
+                      aria-label={`${unread} unread message${unread === 1 ? "" : "s"}`}
+                    >
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  ) : null}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="truncate font-bold">
+                    <p
+                      className={`truncate ${
+                        unread > 0 ? "font-extrabold text-slate-900" : "font-bold"
+                      }`}
+                    >
                       {conversation.counterpart?.name || conversation.title}
                     </p>
                     <span className="shrink-0 text-xs text-slate-500">
@@ -438,13 +478,12 @@ const MessagesPage = () => {
                         {role}
                       </span>
                     ) : null}
-                    {unread > 0 ? (
-                      <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-1.5 text-[10px] font-bold text-white">
-                        {unread}
-                      </span>
-                    ) : null}
                   </div>
-                  <p className="mt-2 truncate text-sm text-slate-500">
+                  <p
+                    className={`mt-2 truncate text-sm ${
+                      unread > 0 ? "font-semibold text-slate-700" : "text-slate-500"
+                    }`}
+                  >
                     {conversation.lastMessagePreview || "No messages yet"}
                   </p>
                 </div>
@@ -503,7 +542,10 @@ const MessagesPage = () => {
           </div>
         </div>
 
-        <div className="notarix-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/40 p-7">
+        <div
+          ref={messagesScrollRef}
+          className="notarix-scrollbar min-h-0 flex-1 overflow-y-auto bg-slate-50/40 p-7"
+        >
           {messages.map((message) => {
             const isOwn = Boolean(message.isOwnMessage);
             const wrapperClass = isOwn ? "flex justify-end" : "flex justify-start";
