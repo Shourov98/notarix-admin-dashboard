@@ -24,6 +24,7 @@ import {
   SectionTitle,
   StatusBadge,
 } from "../components/ui";
+import OrderMessageCenter from "../components/OrderMessageCenter";
 import {
   acceptAdminOrder,
   assignAdminOrderNotary,
@@ -593,6 +594,11 @@ const OrderDetailsPage = () => {
               </p>
             </Card>
           ) : null}
+
+          <OrderMessageCenter
+            orderId={activeOrder.rawId || String(activeOrder.id || "").replace(/^#/, "")}
+            orderLabel={activeOrder.id}
+          />
         </div>
 
         <aside className="space-y-7">
