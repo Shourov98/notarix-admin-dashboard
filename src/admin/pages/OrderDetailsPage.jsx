@@ -931,37 +931,39 @@ const OrderDetailsPage = () => {
             </div>
           </Card>
 
-          {/* Assigned Notary */}
-          <Card className="p-6">
-            <SectionTitle icon={ShieldCheck} title="Assigned Notary" />
-            <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-slate-50 p-4">
-              <div className="flex items-start gap-3">
-                <Avatar
-                  name={notaryName}
-                  tone="bg-blue-100 text-blue-700"
-                  size="md"
-                  src={notaryAvatar}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold text-slate-900 truncate">{notaryName || "Not assigned"}</p>
-                  <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
-                    <Check className="h-3.5 w-3.5" />
-                    Accepted
+          {/* Assigned Notary — only shown after a notary has been assigned to the order */}
+          {activeOrder?.notaryId || notaryName ? (
+            <Card className="p-6">
+              <SectionTitle icon={ShieldCheck} title="Assigned Notary" />
+              <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <Avatar
+                    name={notaryName}
+                    tone="bg-blue-100 text-blue-700"
+                    size="md"
+                    src={notaryAvatar}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-900 truncate">{notaryName || "Not assigned"}</p>
+                    <div className="mt-1 flex items-center gap-1.5 text-xs font-bold text-emerald-600">
+                      <Check className="h-3.5 w-3.5" />
+                      Accepted
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Email</span>
+                    <span className="font-semibold text-slate-900 truncate">{notaryEmail || "Not provided"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Phone</span>
+                    <span className="font-semibold text-slate-900">{notaryPhone || "Not provided"}</span>
                   </div>
                 </div>
               </div>
-              <div className="mt-4 space-y-2 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-slate-500">Email</span>
-                  <span className="font-semibold text-slate-900 truncate">{notaryEmail || "Not provided"}</span>
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-slate-500">Phone</span>
-                  <span className="font-semibold text-slate-900">{notaryPhone || "Not provided"}</span>
-                </div>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          ) : null}
 
           {/* Payment Details */}
           <Card className="p-6">
