@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Building2,
@@ -20,12 +20,12 @@ import {
   SectionTitle,
   StatusBadge,
 } from "../components/ui";
+import EditUserModal from "../components/EditUserModal";
 import {
   fetchAdminUser,
   selectAdminConsole,
   suspendUser,
   activateUser,
-  updateUserStatus,
   updateUserDocumentStatus,
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
@@ -53,7 +53,6 @@ const countPendingDocuments = (documents = []) =>
 
 const ClientOverview = ({
   client,
-  onApprove,
   onSuspend,
   onReactivate,
   onRequestMissing,
@@ -139,9 +138,6 @@ const ClientOverview = ({
       <Card className="p-6">
         <p className="mb-4 text-sm font-bold uppercase tracking-[0.2em] text-slate-500">Administrative Actions</p>
         <div className="space-y-3">
-          <Button className="w-full" icon={ShieldCheck} onClick={onApprove}>
-            {client?.status === "Active" ? "Mark as Approved" : "Approve Client"}
-          </Button>
           <Button className="w-full" variant="danger" onClick={onSuspend}>
             Suspend Client
           </Button>
@@ -486,6 +482,8 @@ const UserProfilePage = ({ type = "client" }) => {
   const client = !isNotary ? currentUser : null;
   const notary = isNotary ? currentUser : null;
 
+  const [editOpen, setEditOpen] = useState(false);
+
   useEffect(() => {
     if (id) {
       dispatch(fetchAdminUser(id));
@@ -527,16 +525,6 @@ const UserProfilePage = ({ type = "client" }) => {
       toast.success("Document marked as missing.");
     } catch (error) {
       toast.error(error || "Unable to mark document as missing.");
-    }
-  };
-
-  const handleApproveUser = async () => {
-    if (!id) return;
-    try {
-      await dispatch(updateUserStatus({ userId: id, status: "Active" })).unwrap();
-      toast.success(`${isNotary ? "Notary" : "Client"} approved.`);
-    } catch (error) {
-      toast.error(error || "Unable to approve user.");
     }
   };
 
@@ -604,13 +592,15 @@ const UserProfilePage = ({ type = "client" }) => {
   };
 
   const handleEditUser = () => {
-    if (!id) return;
-    // Profile editing surface is not built yet; route the admin back to the
-    // user-management list so they can use existing filters/actions there.
-    toast.info(
-      "Inline profile editing opens in a future release. Use the documents tab to review records."
-    );
-    window.location.href = `/users/${type}/${id}/documents`;
+    if (!id) {
+      toast.error("Missing user id.");
+      return;
+    }
+    setEditOpen(true);
+  };
+
+  const handleEditSaved = () => {
+    setEditOpen(false);
   };
 
   return (
@@ -633,9 +623,6 @@ const UserProfilePage = ({ type = "client" }) => {
               Suspend
             </Button>
           )}
-          <Button variant="secondary" onClick={handleApproveUser}>
-            Approve
-          </Button>
           {isNotary ? <Button onClick={handleSendMessage}>Send Message</Button> : null}
           {!isNotary ? <Button onClick={handleSendMessage}>Send Message</Button> : null}
         </div>
@@ -712,13 +699,20 @@ const UserProfilePage = ({ type = "client" }) => {
       ) : (
         <ClientOverview
           client={client}
-          onApprove={handleApproveUser}
           onSuspend={handleSuspendUser}
           onReactivate={handleReactivateUser}
           onRequestMissing={handleRequestMissingDocs}
           onSendMessage={handleSendMessage}
         />
       )}
+
+      <EditUserModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onSaved={handleEditSaved}
+        user={currentUser}
+        role={type}
+      />
     </div>
   );
 };

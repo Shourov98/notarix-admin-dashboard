@@ -270,9 +270,21 @@ const DashboardPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentOrders.map((order) => (
+                  {recentOrders.map((order) => {
+                    // Order ids from the backend are prefixed with `#` (e.g.
+                    // `#ORD-178...`). Strip the `#` so the URL matches the
+                    // `/orders/:id` route used by the rest of the app.
+                    const rawOrderId = String(order.id || "").replace(/^#/, "");
+                    return (
                     <tr key={order.id} className="border-t border-slate-200">
-                      <td className="px-5 py-5 font-semibold text-[var(--color-brand-primary)]">{order.id}</td>
+                      <td className="px-5 py-5 font-semibold text-[var(--color-brand-primary)]">
+                        <Link
+                          to={`/orders/${rawOrderId}`}
+                          className="text-[var(--color-brand-primary)] underline-offset-2 hover:underline"
+                        >
+                          {order.id}
+                        </Link>
+                      </td>
                       <td className="px-5 py-5">{order.client}</td>
                       <td className="px-5 py-5">
                         <NotaryCell name={order.notary} />
@@ -283,7 +295,8 @@ const DashboardPage = () => {
                       </td>
                       <td className="px-5 py-5 text-slate-600">{order.date}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

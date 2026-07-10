@@ -55,6 +55,8 @@ const baseState = () => {
     activeUser: null,
     activeUserStatus: "idle",
     activeUserError: null,
+    updateUserStatusFlag: "idle",
+    updateUserError: null,
     requests: [],
     requestsPagination: emptyPagination,
     requestsStatus: "idle",
@@ -632,6 +634,31 @@ export const updateUserDocumentStatus = createAsyncThunk(
   }
 );
 
+/**
+ * Update editable profile fields for a user (admin-driven). The backend
+ * route is `PATCH /admin/users/:id` and accepts a partial body covering
+ * name, status, company, area, primaryContact, address, organization, etc.
+ */
+export const updateAdminUser = createAsyncThunk(
+  "adminConsole/updateAdminUser",
+  async ({ userId, changes }, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest(`/admin/users/${userId}`, {
+        method: "PATCH",
+        body: changes || {},
+      });
+      await Promise.all([
+        dispatch(fetchAdminUser(userId)),
+        dispatch(fetchAdminUsers()),
+        dispatch(fetchAdminConsole()),
+      ]);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to update user.");
+    }
+  }
+);
+
 export const fetchSupportTickets = createAsyncThunk(
   "adminConsole/fetchSupportTickets",
   async (filters = {}, { rejectWithValue }) => {
@@ -801,6 +828,8 @@ const adminConsoleSlice = createSlice({
     activeUser: null,
     activeUserStatus: "idle",
     activeUserError: null,
+    updateUserStatusFlag: "idle",
+    updateUserError: null,
     requests: [],
     requestsPagination: emptyPagination,
     requestsStatus: "idle",
@@ -1247,6 +1276,18 @@ const adminConsoleSlice = createSlice({
       .addCase(createAdminOrder.rejected, (state, action) => {
         state.createAdminOrderStatus = "error";
         state.createAdminOrderError = action.payload || "Unable to create order.";
+      })
+      .addCase(updateAdminUser.pending, (state) => {
+        state.updateUserStatusFlag = "loading";
+        state.updateUserError = null;
+      })
+      .addCase(updateAdminUser.fulfilled, (state) => {
+        state.updateUserStatusFlag = "succeeded";
+        state.updateUserError = null;
+      })
+      .addCase(updateAdminUser.rejected, (state, action) => {
+        state.updateUserStatusFlag = "error";
+        state.updateUserError = action.payload || "Unable to update user.";
       });
   },
 });
