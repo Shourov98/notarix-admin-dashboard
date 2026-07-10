@@ -103,6 +103,11 @@ const baseState = () => {
     ticketActionStatus: "idle",
     ticketActionError: null,
     supportTickets: [],
+    dashboardTimeSeries: null,
+    dashboardTimeSeriesStatus: "idle",
+    dashboardTimeSeriesError: null,
+    createAdminOrderStatus: "idle",
+    createAdminOrderError: null,
   };
 };
 
@@ -165,6 +170,40 @@ export const fetchAdminConsole = createAsyncThunk(
       return normalizeConsoleData(payload?.data || payload);
     } catch (error) {
       return rejectWithValue(error?.message || "Unable to load admin console.");
+    }
+  }
+);
+
+export const fetchDashboardTimeSeries = createAsyncThunk(
+  "adminConsole/fetchDashboardTimeSeries",
+  async ({ days = 14 } = {}, { rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/dashboard/timeseries", {
+        query: { days },
+      });
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to load dashboard timeseries.");
+    }
+  }
+);
+
+export const createAdminOrder = createAsyncThunk(
+  "adminConsole/createAdminOrder",
+  async (orderPayload, { dispatch, rejectWithValue }) => {
+    try {
+      const payload = await apiRequest("/admin/orders", {
+        method: "POST",
+        body: orderPayload,
+      });
+      await Promise.all([
+        dispatch(fetchAdminConsole()),
+        dispatch(fetchAdminOrders()),
+        dispatch(fetchDashboardTimeSeries({ days: 14 })),
+      ]);
+      return payload?.data || payload;
+    } catch (error) {
+      return rejectWithValue(error?.message || "Unable to create order.");
     }
   }
 );
@@ -1182,6 +1221,32 @@ const adminConsoleSlice = createSlice({
       .addCase(fetchSecuritySettings.rejected, (state, action) => {
         state.securitySettingsStatus = "error";
         state.securitySettingsError = action.payload || "Unable to load security settings.";
+      })
+      .addCase(fetchDashboardTimeSeries.pending, (state) => {
+        state.dashboardTimeSeriesStatus = "loading";
+        state.dashboardTimeSeriesError = null;
+      })
+      .addCase(fetchDashboardTimeSeries.fulfilled, (state, action) => {
+        state.dashboardTimeSeries = action.payload || null;
+        state.dashboardTimeSeriesStatus = "ready";
+        state.dashboardTimeSeriesError = null;
+      })
+      .addCase(fetchDashboardTimeSeries.rejected, (state, action) => {
+        state.dashboardTimeSeries = null;
+        state.dashboardTimeSeriesStatus = "error";
+        state.dashboardTimeSeriesError = action.payload || "Unable to load dashboard timeseries.";
+      })
+      .addCase(createAdminOrder.pending, (state) => {
+        state.createAdminOrderStatus = "loading";
+        state.createAdminOrderError = null;
+      })
+      .addCase(createAdminOrder.fulfilled, (state) => {
+        state.createAdminOrderStatus = "succeeded";
+        state.createAdminOrderError = null;
+      })
+      .addCase(createAdminOrder.rejected, (state, action) => {
+        state.createAdminOrderStatus = "error";
+        state.createAdminOrderError = action.payload || "Unable to create order.";
       });
   },
 });

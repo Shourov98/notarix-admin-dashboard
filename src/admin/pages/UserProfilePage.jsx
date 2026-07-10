@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   Building2,
   CheckCircle2,
@@ -475,6 +475,7 @@ const NotaryDocuments = ({ documents = [], onApprove, onMarkMissing }) => (
 
 const UserProfilePage = ({ type = "client" }) => {
   const dispatch = useAppDispatch();
+  const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
   const { activeUser, activeUserStatus } = useAppSelector(selectAdminConsole);
@@ -591,17 +592,15 @@ const UserProfilePage = ({ type = "client" }) => {
   };
 
   const handleSendMessage = () => {
-    if (!currentUser?.email) {
-      toast.error("This user has no email on file.");
+    // Open the in-app Messages page with the user preselected (and the
+    // conversation created on-demand if it doesn't exist yet). We no longer
+    // fall back to a `mailto:` link because that opens the OS email client
+    // and never reaches the user inside the dashboard.
+    if (!id) {
+      toast.error("Missing user id.");
       return;
     }
-    const subject = encodeURIComponent(
-      `${isNotary ? "Notary" : "Client"} account — message from Notarix admin`
-    );
-    const body = encodeURIComponent(
-      `Hello ${currentUser.name || ""},\n\n`
-    );
-    window.location.href = `mailto:${currentUser.email}?subject=${subject}&body=${body}`;
+    navigate(`/messages?to=${encodeURIComponent(id)}`);
   };
 
   const handleEditUser = () => {

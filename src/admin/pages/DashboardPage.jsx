@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BadgeCheck,
@@ -12,15 +13,29 @@ import {
   UsersRound,
 } from "lucide-react";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   Button,
   Card,
   MetricCard,
   PageHeader,
   StatusBadge,
 } from "../components/ui";
-import { selectAdminConsole } from "../../store/adminConsoleSlice";
+import {
+  fetchDashboardTimeSeries,
+  selectAdminConsole,
+} from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { toast } from "sonner";
+import CreateOrderModal from "../components/CreateOrderModal";
 
 const dashboardStatIcons = {
   "Total Users": UsersRound,
@@ -30,6 +45,13 @@ const dashboardStatIcons = {
   "Total Revenue": Landmark,
   "Admin Team": ShieldUser,
 };
+
+const toCurrency = (value) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 
 const quickActionClass =
   "inline-flex h-12 w-full items-center justify-start gap-2 rounded-lg bg-white/15 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/20";
@@ -48,17 +70,36 @@ const NotaryCell = ({ name }) => {
 };
 
 const DashboardPage = () => {
-  const { dashboardStats, recentOrders } = useAppSelector(selectAdminConsole);
+  const {
+    dashboardStats,
+    recentOrders,
+    dashboardTimeSeries,
+    dashboardTimeSeriesStatus,
+  } = useAppSelector(selectAdminConsole);
+  const dispatch = useAppDispatch();
 
-  // Orders are created by clients in the portal, not by admins in the dashboard.
-  // Clicking "Create Order" here navigates to the orders list filtered to recent
-  // activity so the admin can monitor what's coming in.
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [trendDays, setTrendDays] = useState(14);
+
+  useEffect(() => {
+    dispatch(fetchDashboardTimeSeries({ days: trendDays }));
+  }, [dispatch, trendDays]);
+
   const handleCreateOrder = () => {
-    toast.info(
-      "Orders are created by clients via the Notarix portal. Opening the orders queue."
-    );
-    window.location.href = "/orders";
+    setCreateOrderOpen(true);
   };
+
+  const seriesData = useMemo(() => {
+    const series = dashboardTimeSeries?.series || [];
+    return series.map((entry) => ({
+      label: entry.label,
+      orders: entry.orders,
+      completed: entry.completedOrders,
+      revenue: Math.round(Number(entry.revenue || 0)),
+    }));
+  }, [dashboardTimeSeries]);
+
+  const totals = dashboardTimeSeries?.totals;
 
   const quickActions = [
     { label: "Create Order", icon: PlusCircle, onClick: handleCreateOrder },
@@ -66,6 +107,11 @@ const DashboardPage = () => {
     { label: "Add Client", icon: UserPlus, to: "/users/new?type=client" },
     { label: "View Reports", icon: ChartNoAxesColumn, to: "/reports" },
   ];
+
+  const handleCreateOrderRedirect = (orderId) => {
+    toast.success(`Order ${orderId} created.`);
+    setCreateOrderOpen(false);
+  };
 
   return (
     <div>
@@ -80,9 +126,94 @@ const DashboardPage = () => {
 
       <div className="mt-10 grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="p-7">
-          <h2 className="text-2xl font-semibold">Orders Overview</h2>
-          <div className="mt-6 rounded-lg border border-dashed border-[var(--color-border)] bg-slate-50 p-6 text-slate-600">
-            Trend charts are not rendered here until the backend exposes a real time-series dataset for the admin dashboard.
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold">Orders Overview</h2>
+            <div className="flex items-center gap-2">
+              {[7, 14, 30].map((days) => (
+                <button
+                  key={days}
+                  type="button"
+                  onClick={() => setTrendDays(days)}
+                  className={`rounded-lg px-3 py-1 text-xs font-semibold transition-colors ${
+                    trendDays === days
+                      ? "bg-[var(--color-brand-primary)] text-white"
+                      : "border border-[var(--color-border)] bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {days}d
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {totals ? (
+            <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+              <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Orders
+                </p>
+                <p className="mt-1 text-xl font-bold text-slate-900">{totals.orders}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Completed
+                </p>
+                <p className="mt-1 text-xl font-bold text-emerald-600">{totals.completedOrders}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Revenue
+                </p>
+                <p className="mt-1 text-xl font-bold text-slate-900">{toCurrency(totals.revenue)}</p>
+              </div>
+              <div className="rounded-lg border border-[var(--color-border)] bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Payouts
+                </p>
+                <p className="mt-1 text-xl font-bold text-[#b34a4a]">{toCurrency(totals.payouts)}</p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-5 h-[280px] w-full">
+            {dashboardTimeSeriesStatus === "loading" ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                Loading order trends…
+              </div>
+            ) : seriesData.length === 0 ? (
+              <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-[var(--color-border)] bg-slate-50 text-sm text-slate-500">
+                No order activity in the last {trendDays} days.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={seriesData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef2ff" />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={12} />
+                  <YAxis axisLine={false} tickLine={false} fontSize={12} />
+                  <Tooltip
+                    formatter={(value, name) => {
+                      if (name === "revenue") {
+                        return toCurrency(value);
+                      }
+                      return value;
+                    }}
+                  />
+                  <Legend />
+                  <Bar
+                    dataKey="orders"
+                    name="Orders created"
+                    fill="var(--color-brand-primary)"
+                    radius={[6, 6, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completed"
+                    name="Orders completed"
+                    fill="#0f9d79"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </Card>
 
@@ -179,6 +310,12 @@ const DashboardPage = () => {
       <footer className="mt-16 border-t border-[var(--color-border)] pt-5 text-center text-sm text-slate-500">
         &copy; 2026 Notarix&trade; Technologies Inc. All rights reserved.
       </footer>
+
+      <CreateOrderModal
+        open={createOrderOpen}
+        onClose={() => setCreateOrderOpen(false)}
+        onCreated={handleCreateOrderRedirect}
+      />
     </div>
   );
 };

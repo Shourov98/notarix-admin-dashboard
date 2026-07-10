@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Download,
   ExternalLink,
@@ -86,6 +86,8 @@ const MessagesPage = () => {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [activeFilter, setActiveFilter] = useState("all"); // "all" | "clients" | "notaries" | "unread"
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkUserId = searchParams.get("to") || "";
   const socketRef = useRef(null);
   const rawSocketUrl =
     import.meta.env.VITE_SOCKET_URL?.trim() ||
@@ -170,6 +172,52 @@ const MessagesPage = () => {
       setMessages([]);
     }
   }, [activeConversationId]);
+
+  // Deep-link handler: when we land on /messages?to=<userId>, make sure a
+  // conversation with that user exists, then select it. Backend endpoint
+  // `POST /admin/conversations/direct` finds-or-creates it. Clear the query
+  // param when finished so a manual refresh doesn't re-trigger the create.
+  useEffect(() => {
+    if (!deepLinkUserId) return undefined;
+
+    let cancelled = false;
+
+    const openConversationWithUser = async () => {
+      try {
+        const payload = await apiRequest("/admin/conversations/direct", {
+          method: "POST",
+          body: { userId: deepLinkUserId },
+        });
+        const conversation = payload?.data || payload;
+        if (cancelled || !conversation?.id) return;
+
+        // Refresh the sidebar so the new conversation shows up.
+        await loadConversations(conversation.id);
+        if (!cancelled) {
+          setSearchParams((current) => {
+            current.delete("to");
+            return current;
+          }, { replace: true });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          toast.error(
+            error?.response?.data?.message || error?.message || "Unable to start conversation."
+          );
+          setSearchParams((current) => {
+            current.delete("to");
+            return current;
+          }, { replace: true });
+        }
+      }
+    };
+
+    openConversationWithUser();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkUserId]);
 
   useEffect(() => {
     const socket = socketRef.current;
