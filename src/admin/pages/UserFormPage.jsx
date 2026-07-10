@@ -4,12 +4,15 @@ import {
   Building2,
   Camera,
   FileCheck2,
+  FileText,
   FolderUp,
   LockKeyhole,
   MapPin,
   Save,
   ShieldCheck,
+  UploadCloud,
   UserRound,
+  X,
 } from "lucide-react";
 import {
   Button,
@@ -23,6 +26,8 @@ import {
   StatusBadge,
   TextArea,
 } from "../components/ui";
+import LocationSelect from "../components/LocationSelect";
+import { getCitiesForState, US_STATES } from "../data/usLocations";
 import {
   createClient,
   createNotary,
@@ -324,25 +329,45 @@ const UserFormPage = () => {
                     value={formState.address.line2}
                     onChange={(event) => updateSection("address", "line2", event.target.value)}
                   />
-                  <Field
-                    label="City"
-                    required
-                    placeholder="City"
-                    className="md:col-span-2"
-                    value={formState.address.city}
-                    onChange={(event) => updateSection("address", "city", event.target.value)}
-                  />
-                  <SelectField
-                    label="State"
-                    required
-                    className="md:col-span-2"
-                    value={formState.address.state}
-                    onChange={(event) => updateSection("address", "state", event.target.value)}
-                  >
-                    <option>Select State</option>
-                    <option>Texas</option>
-                    <option>New York</option>
-                  </SelectField>
+                  <div className="md:col-span-2">
+                    <LocationSelect
+                      label="State"
+                      required
+                      placeholder="Search by state name or code..."
+                      options={US_STATES}
+                      value={formState.address.state}
+                      onChange={(value) => {
+                        updateSection("address", "state", value);
+                        // Reset city when state changes.
+                        updateSection("address", "city", "");
+                      }}
+                      helper={
+                        formState.address.state
+                          ? undefined
+                          : "Select a state first."
+                      }
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <LocationSelect
+                      label="City"
+                      required
+                      placeholder={
+                        formState.address.state
+                          ? "Search city in this state..."
+                          : "Pick a state first"
+                      }
+                      options={getCitiesForState(formState.address.state)}
+                      value={formState.address.city}
+                      onChange={(value) => updateSection("address", "city", value)}
+                      disabled={!formState.address.state}
+                      emptyMessage={
+                        formState.address.state
+                          ? "No cities in our list for this state."
+                          : "Select a state to load cities."
+                      }
+                    />
+                  </div>
                   <Field
                     label="ZIP Code"
                     required
@@ -472,25 +497,45 @@ const UserFormPage = () => {
                     value={formState.address.line2}
                     onChange={(event) => updateSection("address", "line2", event.target.value)}
                   />
-                  <Field
-                    label="City"
-                    required
-                    placeholder="Austin"
-                    className="md:col-span-2"
-                    value={formState.address.city}
-                    onChange={(event) => updateSection("address", "city", event.target.value)}
-                  />
-                  <SelectField
-                    label="State"
-                    required
-                    className="md:col-span-2"
-                    value={formState.address.state}
-                    onChange={(event) => updateSection("address", "state", event.target.value)}
-                  >
-                    <option>Select State</option>
-                    <option>Texas</option>
-                    <option>New York</option>
-                  </SelectField>
+                  <div className="md:col-span-2">
+                    <LocationSelect
+                      label="State"
+                      required
+                      placeholder="Search by state name or code..."
+                      options={US_STATES}
+                      value={formState.address.state}
+                      onChange={(value) => {
+                        updateSection("address", "state", value);
+                        // Reset city when state changes.
+                        updateSection("address", "city", "");
+                      }}
+                      helper={
+                        formState.address.state
+                          ? undefined
+                          : "Select a state first."
+                      }
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <LocationSelect
+                      label="City"
+                      required
+                      placeholder={
+                        formState.address.state
+                          ? "Search city in this state..."
+                          : "Pick a state first"
+                      }
+                      options={getCitiesForState(formState.address.state)}
+                      value={formState.address.city}
+                      onChange={(value) => updateSection("address", "city", value)}
+                      disabled={!formState.address.state}
+                      emptyMessage={
+                        formState.address.state
+                          ? "No cities in our list for this state."
+                          : "Select a state to load cities."
+                      }
+                    />
+                  </div>
                   <Field
                     label="ZIP Code"
                     required
@@ -593,39 +638,103 @@ const UserFormPage = () => {
                   ? clientDocuments.find((document) => document.title === title)
                   : notaryDocumentsState.find((document) => document.title === title);
 
+                const file = selectedDocument?.file;
+                const slug = selectedDocument?.id || title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-");
+                const inputId = `${type}-${slug}`;
+                const fileSizeLabel = file?.size
+                  ? `${(file.size / 1024).toFixed(file.size < 1024 * 10 ? 1 : 0)} KB`
+                  : "";
+
+                const onPick = (event) => {
+                  const next = event.target.files?.[0] || null;
+                  if (isClient) {
+                    handleClientDocumentChange(title, next);
+                  } else {
+                    handleNotaryDocumentChange(title, next);
+                  }
+                  event.target.value = "";
+                };
+
+                const onRemove = () => {
+                  if (isClient) {
+                    handleClientDocumentChange(title, null);
+                  } else {
+                    handleNotaryDocumentChange(title, null);
+                  }
+                };
+
                 return (
-                  <div key={title} className="rounded-lg border border-[var(--color-border)] p-4">
-                    <div className="mb-3 flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-bold">{title}</p>
-                        <p className="text-sm text-slate-600">{description}</p>
+                  <div
+                    key={title}
+                    className="flex h-full min-h-[200px] flex-col rounded-xl border border-[var(--color-border)] bg-white p-4 transition-shadow hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-slate-900" title={title}>
+                          {title}
+                        </p>
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{description}</p>
                       </div>
                       <StatusBadge
-                        status={
-                          selectedDocument?.file
-                            ? "Pending"
-                            : "Missing"
-                        }
+                        status={file ? "Pending" : "Missing"}
+                        className="shrink-0"
                       />
                     </div>
+
                     <input
-                      id={`${type}-${selectedDocument?.id || title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`}
+                      id={inputId}
                       type="file"
                       accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
                       className="hidden"
-                      onChange={(event) =>
-                        (isClient
-                          ? handleClientDocumentChange(title, event.target.files?.[0] || null)
-                          : handleNotaryDocumentChange(title, event.target.files?.[0] || null))
-                      }
+                      onChange={onPick}
                     />
-                    <label
-                      htmlFor={`${type}-${selectedDocument?.id || title.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`}
-                      className="inline-flex h-9 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--color-border)] bg-white px-3 text-sm font-semibold text-[var(--color-brand-primary)] hover:bg-slate-50"
-                    >
-                      <FolderUp className="h-4 w-4" />
-                      <span>{selectedDocument?.file ? selectedDocument.file.name : "Upload"}</span>
-                    </label>
+
+                    {file ? (
+                      <div className="mt-3 flex flex-1 flex-col gap-3">
+                        <div className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-[var(--color-brand-primary)] ring-1 ring-slate-200">
+                            <FileText className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className="truncate text-sm font-semibold text-slate-800"
+                              title={file.name}
+                            >
+                              {file.name}
+                            </p>
+                            <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                              {fileSizeLabel || "Uploaded"}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={onRemove}
+                            aria-label={`Remove ${file.name}`}
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <label
+                          htmlFor={inputId}
+                          className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--color-border)] bg-white px-3 text-xs font-semibold text-slate-600 transition hover:border-[var(--color-brand-primary)] hover:text-[var(--color-brand-primary)]"
+                        >
+                          <FolderUp className="h-3.5 w-3.5" />
+                          Replace file
+                        </label>
+                      </div>
+                    ) : (
+                      <label
+                        htmlFor={inputId}
+                        className="mt-3 inline-flex h-24 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 bg-slate-50 text-[var(--color-brand-primary)] transition hover:border-[var(--color-brand-primary)] hover:bg-white"
+                      >
+                        <UploadCloud className="h-5 w-5" />
+                        <span className="text-xs font-semibold">Click to upload</span>
+                        <span className="text-[10px] font-medium text-slate-500">
+                          PDF, JPG, PNG, DOC up to 10 MB
+                        </span>
+                      </label>
+                    )}
                   </div>
                 );
               })}
@@ -634,61 +743,63 @@ const UserFormPage = () => {
         </div>
 
         <aside className="space-y-4">
-          <Card className="sticky top-24 p-6">
-            {isClient ? (
-              <>
-                <h2 className="text-lg font-semibold">Client Summary</h2>
-                <div className="mt-6 flex items-center justify-between">
-                  <p className="text-sm text-slate-600">Onboarding Progress</p>
-                  <p className="font-bold text-[var(--color-brand-primary)]">0%</p>
+          <div className="sticky top-24 space-y-4">
+            <Card className="p-6">
+              {isClient ? (
+                <>
+                  <h2 className="text-lg font-semibold">Client Summary</h2>
+                  <div className="mt-6 flex items-center justify-between">
+                    <p className="text-sm text-slate-600">Onboarding Progress</p>
+                    <p className="font-bold text-[var(--color-brand-primary)]">0%</p>
+                  </div>
+                  <div className="mt-3 h-2 rounded-full bg-slate-200" />
+                  <div className="mt-5 space-y-3 text-sm text-slate-400">
+                    <p>Organization Profile</p>
+                    <p>Verification Documents</p>
+                    <p>Account Credentials</p>
+                  </div>
+                </>
+              ) : (
+                <div className="border-t border-slate-100 pt-4">
+                  <p className="text-sm text-slate-600">New notary records are held in pending status until commission and E&O documents are verified.</p>
                 </div>
-                <div className="mt-3 h-2 rounded-full bg-slate-200" />
-                <div className="mt-5 space-y-3 text-sm text-slate-400">
-                  <p>Organization Profile</p>
-                  <p>Verification Documents</p>
-                  <p>Account Credentials</p>
-                </div>
-              </>
-            ) : (
-              <div className="border-t border-slate-100 pt-4">
-                <p className="text-sm text-slate-600">New notary records are held in pending status until commission and E&O documents are verified.</p>
+              )}
+              <div className="mt-6 space-y-3">
+                <Button
+                  icon={Save}
+                  className="w-full"
+                  onClick={handleClientSubmit}
+                  disabled={
+                    (isClient && createClientStatus === "loading") ||
+                    (!isClient && createNotaryStatus === "loading")
+                  }
+                >
+                  {(createClientStatus === "loading" && isClient) ||
+                  (createNotaryStatus === "loading" && !isClient)
+                    ? `Saving ${isClient ? "Client" : "Notary"}...`
+                    : `Save ${isClient ? "Client" : "Notary"}`}
+                </Button>
+                <Button variant="secondary" className="w-full">
+                  Cancel
+                </Button>
               </div>
-            )}
-            <div className="mt-6 space-y-3">
-              <Button
-                icon={Save}
-                className="w-full"
-                onClick={handleClientSubmit}
-                disabled={
-                  (isClient && createClientStatus === "loading") ||
-                  (!isClient && createNotaryStatus === "loading")
-                }
-              >
-                {(createClientStatus === "loading" && isClient) ||
-                (createNotaryStatus === "loading" && !isClient)
-                  ? `Saving ${isClient ? "Client" : "Notary"}...`
-                  : `Save ${isClient ? "Client" : "Notary"}`}
-              </Button>
-              <Button variant="secondary" className="w-full">
-                Cancel
-              </Button>
-            </div>
-          </Card>
-
-          {isClient ? (
-            <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
-              Adding a new client will trigger the automated onboarding workflow. Ensure all required documents are flagged if not available immediately.
-            </div>
-          ) : (
-            <Card className="p-4">
-              <CheckboxLine
-                checked={formState.ronEligible}
-                label="RON eligible profile"
-                description="Enable online session review once identity checks pass."
-                onChange={(event) => updateField("ronEligible", event.target.checked)}
-              />
             </Card>
-          )}
+
+            {isClient ? (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-700">
+                Adding a new client will trigger the automated onboarding workflow. Ensure all required documents are flagged if not available immediately.
+              </div>
+            ) : (
+              <Card className="p-4">
+                <CheckboxLine
+                  checked={formState.ronEligible}
+                  label="RON eligible profile"
+                  description="Enable online session review once identity checks pass."
+                  onChange={(event) => updateField("ronEligible", event.target.checked)}
+                />
+              </Card>
+            )}
+          </div>
         </aside>
       </div>
     </div>
