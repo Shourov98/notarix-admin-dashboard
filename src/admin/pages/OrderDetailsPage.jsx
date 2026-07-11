@@ -670,7 +670,7 @@ const OrderDetailsPage = () => {
       await dispatch(acceptAdminOrder(id)).unwrap();
       toast.success("Order accepted.");
     } catch (error) {
-      toast.error(error || "Unable to accept order.");
+      toast.error(friendlyApiError(error, "We couldn't accept this order. Please try again."));
     }
   };
 
