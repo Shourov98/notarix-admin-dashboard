@@ -20,6 +20,15 @@ const AdminLayout = () => {
     dispatch(fetchAdminConsole());
   }, [dispatch]);
 
+  useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [sidebarOpen]);
+
   return (
     <div className="min-h-screen bg-[var(--color-dashboard-bg)] lg:grid lg:grid-cols-[284px_minmax(0,1fr)]">
       <div className="fixed inset-y-0 left-0 z-40 hidden w-[284px] lg:block">

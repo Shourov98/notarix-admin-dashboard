@@ -616,7 +616,8 @@ const AdminSettings = () => {
       actions={<Button icon={Plus} onClick={() => setOpen(true)}>Add Admin</Button>}
     >
       <Card className="overflow-hidden">
-        <table className="min-w-full text-left">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left">
           <thead className="bg-[#f0eefb] text-xs uppercase text-slate-500">
             <tr><th className="px-6 py-5">Name</th><th className="px-6 py-5">Email</th><th className="px-6 py-5">Role</th><th className="px-6 py-5">Permissions</th><th className="px-6 py-5">Status</th><th className="px-6 py-5">Last Login</th><th className="px-6 py-5">Actions</th></tr>
           </thead>
@@ -685,6 +686,7 @@ const AdminSettings = () => {
             ) : null}
           </tbody>
         </table>
+        </div>
         <div className="border-t border-slate-200 bg-[#f0eefb] p-5 text-sm text-slate-600">Showing {admins.length} internal administrators</div>
       </Card>
       <Card className="mt-7 bg-[#e8e6f5] p-7">
