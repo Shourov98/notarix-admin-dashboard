@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   Building2,
@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   UserPlus,
   UserRound,
+  X,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -47,6 +48,21 @@ import {
   updateAdminOrderStatus,
 } from "../../store/adminConsoleSlice";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
+
+const friendlyApiError = (error, fallback) => {
+  const raw = typeof error === "string" ? error : error?.message;
+  if (!raw) return fallback;
+  if (/networkerror|failed to fetch|load failed/i.test(raw)) {
+    return "We couldn't reach the server. Check your internet connection and try again.";
+  }
+  if (/timeout|timed out/i.test(raw)) {
+    return "The request took too long. Please try again in a moment.";
+  }
+  if (/validation|invalid/i.test(raw)) {
+    return "Some of the information you entered isn't valid. Please review the form and try again.";
+  }
+  return raw;
+};
 
 const toDirectoryNotary = (notary) => ({
   id: notary.id,
@@ -90,33 +106,266 @@ const InfoRow = ({ label, value }) => (
   </div>
 );
 
+const HIGHLIGHT_TERM_RX = /[\s\S]/; // placeholder to keep helper discoverable; actual highlight is done inline
+
+const highlightMatch = (text, term) => {
+  if (!text) return text;
+  const value = String(text);
+  const trimmed = term.trim();
+  if (!trimmed) return value;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp(`(${escaped})`, "ig");
+  const parts = value.split(rx);
+  return parts.map((part, index) =>
+    rx.test(part) ? (
+      <mark
+        key={`hl-${index}`}
+        className="rounded bg-[var(--color-brand-primary-soft)] px-0.5 font-bold text-[var(--color-brand-primary)]"
+      >
+        {part}
+      </mark>
+    ) : (
+      <span key={`tx-${index}`}>{part}</span>
+    )
+  );
+};
+
+const NotarySearchCombobox = ({ notaries, eligibleNotaryIds, value, onChange }) => {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = notaries.find((notary) => notary.id === value) || null;
+
+  const sorted = useMemo(() => {
+    const eligibleSet = new Set(eligibleNotaryIds);
+    return [...notaries].sort((left, right) => {
+      const leftEligible = eligibleSet.has(left.id) ? 1 : 0;
+      const rightEligible = eligibleSet.has(right.id) ? 1 : 0;
+      if (leftEligible !== rightEligible) {
+        return rightEligible - leftEligible;
+      }
+      return String(left.name || "").localeCompare(String(right.name || ""));
+    });
+  }, [eligibleNotaryIds, notaries]);
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) return sorted;
+    return sorted.filter((notary) =>
+      [notary.name, notary.email, notary.phone, notary.location]
+        .filter(Boolean)
+        .some((field) => String(field).toLowerCase().includes(term))
+    );
+  }, [query, sorted]);
+
+  // Reset active row whenever the filtered list changes.
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [filtered.length, query]);
+
+  // Click-outside closes the popover but never clears the selection.
+  useEffect(() => {
+    const handleClick = (event) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleSelect = (notaryId) => {
+    onChange(notaryId);
+    setOpen(false);
+    setQuery("");
+  };
+
+  const handleClear = (event) => {
+    event.stopPropagation();
+    onChange("");
+    setQuery("");
+    setOpen(true);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      setActiveIndex((current) => Math.min(current + 1, Math.max(filtered.length - 1, 0)));
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex((current) => Math.max(current - 1, 0));
+    } else if (event.key === "Enter") {
+      if (!open) return;
+      const target = filtered[activeIndex];
+      if (target) {
+        event.preventDefault();
+        handleSelect(target.id);
+      }
+    } else if (event.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  const showChip = Boolean(selected) && !query && !open;
+  const popoverVisible = open && (query.length > 0 || Boolean(selected) || notaries.length > 0);
+  const eligibleSet = new Set(eligibleNotaryIds);
+  const term = query.trim();
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <label className="mb-2 block text-sm font-semibold text-slate-700">
+        Notary
+      </label>
+      <div
+        className={`relative flex h-14 w-full items-center rounded-xl border bg-white pl-5 pr-14 text-base transition focus-within:ring-4 ${
+          open
+            ? "border-[var(--color-brand-primary)] ring-blue-200"
+            : "border-[var(--color-border)]"
+        }`}
+      >
+        {showChip ? (
+          <div className="flex flex-1 items-center gap-3 truncate">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[var(--color-brand-primary-soft)] text-xs font-bold text-[var(--color-brand-primary)]">
+              {String(selected.name || "?")
+                .split(" ")
+                .map((part) => part[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase()}
+            </span>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate font-semibold text-slate-900">{selected.name}</span>
+              {selected.location ? (
+                <span className="truncate text-xs text-slate-500">{selected.location}</span>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            <span className="mr-4 select-none text-base font-semibold uppercase tracking-wider text-slate-400">
+              Search
+            </span>
+            <span className="mr-3 h-6 w-px bg-slate-200" aria-hidden="true" />
+            <input
+              ref={inputRef}
+              type="text"
+              className="h-full flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onKeyDown={handleKeyDown}
+              placeholder="Search notary by name, email, phone, or state..."
+            />
+          </>
+        )}
+
+        {(query || selected) ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label="Clear selection"
+            className="absolute right-12 grid h-7 w-7 place-items-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : null}
+
+        <Search
+          className={`pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 transition-colors ${
+            open ? "text-[var(--color-brand-primary)]" : "text-slate-400"
+          }`}
+        />
+      </div>
+
+      {popoverVisible ? (
+        <div className="absolute left-0 right-0 z-50 mt-2 overflow-hidden rounded-xl border border-[var(--color-border)] bg-white shadow-xl">
+          {notaries.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-slate-500">
+              <UserRound className="h-6 w-6 text-slate-300" />
+              No notary records are available yet.
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-slate-500">
+              <Search className="h-6 w-6 text-slate-300" />
+              No notaries match
+              <span className="font-semibold text-slate-700"> &ldquo;{term}&rdquo;</span>.
+            </div>
+          ) : (
+            <ul
+              role="listbox"
+              className="max-h-72 overflow-y-auto py-1"
+            >
+              {filtered.map((notary, index) => {
+                const isSelected = selected?.id === notary.id;
+                const isActive = index === activeIndex;
+                const isEligible = eligibleSet.has(notary.id);
+                return (
+                  <li
+                    key={notary.id}
+                    role="option"
+                    aria-selected={isSelected}
+                    className={`flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors ${
+                      isActive ? "bg-[var(--color-brand-primary-soft)]" : "hover:bg-slate-50"
+                    }`}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleSelect(notary.id)}
+                  >
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--color-brand-primary-soft)] text-xs font-bold text-[var(--color-brand-primary)]">
+                      {String(notary.name || "?")
+                        .split(" ")
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {highlightMatch(notary.name, term)}
+                        </p>
+                        {isEligible ? (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--color-brand-primary-soft)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-brand-primary)]">
+                            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-brand-primary)]" />
+                            Eligible
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="truncate text-xs text-slate-500">
+                        {[notary.location, notary.email].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    {isSelected ? (
+                      <Check className="h-4 w-4 shrink-0 text-[var(--color-brand-primary)]" />
+                    ) : (
+                      <span className="h-4 w-4 shrink-0" />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const AssignModal = ({ open, onClose, notaries, eligibleNotaryIds, onSubmit, status, title }) => {
   const [selectedNotaryId, setSelectedNotaryId] = useState("");
   const [notaryOfferAmount, setNotaryOfferAmount] = useState("");
   const [payoutReleaseDays, setPayoutReleaseDays] = useState("7");
   const [assignmentNotes, setAssignmentNotes] = useState("");
-  const [search, setSearch] = useState("");
-
-  const visibleNotaries = useMemo(() => {
-    const eligibleSet = new Set(eligibleNotaryIds);
-    const term = search.trim().toLowerCase();
-
-    return [...notaries]
-      .sort((left, right) => {
-        const leftEligible = eligibleSet.has(left.id) ? 1 : 0;
-        const rightEligible = eligibleSet.has(right.id) ? 1 : 0;
-        if (leftEligible !== rightEligible) {
-          return rightEligible - leftEligible;
-        }
-        return String(left.name || "").localeCompare(String(right.name || ""));
-      })
-      .filter((notary) => {
-        if (!term) return true;
-        return [notary.name, notary.email, notary.phone, notary.location]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(term));
-      });
-  }, [eligibleNotaryIds, notaries, search]);
 
   useEffect(() => {
     if (!open) return;
@@ -124,7 +373,6 @@ const AssignModal = ({ open, onClose, notaries, eligibleNotaryIds, onSubmit, sta
     setNotaryOfferAmount("");
     setPayoutReleaseDays("7");
     setAssignmentNotes("");
-    setSearch("");
   }, [eligibleNotaryIds, notaries, open]);
 
   const handleSubmit = async () => {
@@ -189,52 +437,13 @@ const AssignModal = ({ open, onClose, notaries, eligibleNotaryIds, onSubmit, sta
         </label>
       </div>
 
-      <div className="mt-6 space-y-3">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input
-            className="h-11 w-full pl-10"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Find notary by name, email, phone, or state"
-          />
-        </label>
-        {visibleNotaries.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 p-5 text-sm text-slate-600">
-            {notaries.length === 0
-              ? "No notary records are available yet."
-              : "No notaries match the current search."}
-          </div>
-        ) : (
-          visibleNotaries.map((notary) => (
-            <label
-              key={notary.id}
-              className={`flex cursor-pointer items-start justify-between rounded-lg border p-4 ${
-                selectedNotaryId === notary.id
-                  ? "border-[var(--color-brand-primary)] bg-blue-50"
-                  : "border-[var(--color-border)] bg-white"
-              }`}
-            >
-              <div>
-                <p className="font-bold text-slate-900">{notary.name}</p>
-                <p className="text-sm text-slate-600">{notary.location}</p>
-                <p className="mt-1 text-sm text-slate-500">{notary.email}</p>
-                {eligibleNotaryIds.includes(notary.id) ? (
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-brand-primary)]">
-                    Eligible for this order
-                  </p>
-                ) : null}
-              </div>
-              <input
-                type="radio"
-                name="order-notary"
-                className="mt-1 h-5 w-5"
-                checked={selectedNotaryId === notary.id}
-                onChange={() => setSelectedNotaryId(notary.id)}
-              />
-            </label>
-          ))
-        )}
+      <div className="mt-6">
+        <NotarySearchCombobox
+          notaries={notaries}
+          eligibleNotaryIds={eligibleNotaryIds}
+          value={selectedNotaryId}
+          onChange={setSelectedNotaryId}
+        />
       </div>
     </Modal>
   );
@@ -412,7 +621,13 @@ const OrderDetailsPage = () => {
     [activeOrder]
   );
   const canReassign = useMemo(
-    () => ["Notary Assigned", "Accepted By Notary", "Assigned", "In Progress"].includes(activeOrder?.workflowStatus || "") || activeOrder?.status === "Assigned",
+    () =>
+      [
+        "Notary Assigned",
+        "Accepted By Notary",
+        "Rejected By Notary",
+        "Needs Reassignment",
+      ].includes(activeOrder?.workflowStatus || ""),
     [activeOrder]
   );
   const canCancel = useMemo(
@@ -485,7 +700,7 @@ const OrderDetailsPage = () => {
       toast.success("Notary reassigned.");
       setShowReassignModal(false);
     } catch (error) {
-      toast.error(error || "Unable to reassign notary.");
+      toast.error(friendlyApiError(error, "We couldn't reassign the notary. Please try again."));
     }
   };
 
